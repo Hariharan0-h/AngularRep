@@ -23,7 +23,7 @@ export class SidebarComponent implements OnInit {
   currentRoute = '';
   
   menuItems = [
-    { label: 'Home', route: '/home' },
+    //{ label: 'Home', route: '/home' },
     { label: 'Reports', route: '/reports' },
     { label: 'Dashboard', route: '/dashboard' },
     { label: 'Files', route: '/files' }

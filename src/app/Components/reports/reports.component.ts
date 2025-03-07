@@ -24,6 +24,9 @@ export class ReportsComponent implements OnInit {
   selectedGroupBy: string = '';
   isLoading: boolean = false;
   baseUrl: string = 'https://localhost:7129/api/Database';
+  sqlQuery: string = '';
+  sqlIsValid: boolean = false;
+  sqlValidationMessage: string = '';
   
   // To track which table's filters and group by are being displayed
   currentDisplayTable: string = '';
@@ -33,6 +36,160 @@ export class ReportsComponent implements OnInit {
   ngOnInit(): void {
     this.loadTables();
     this.loadViews();
+    this.initTabs();
+  }
+
+  // Add this to your component's TypeScript file
+
+// Method to initialize tabs (call this in ngOnInit)
+  initTabs() {
+    const tabLinks = document.querySelectorAll('.nav-link');
+    
+    tabLinks.forEach(link => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        
+        // Remove active class from all tabs and tab contents
+        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(el => {
+          el.classList.remove('show');
+          el.classList.remove('active');
+        });
+        
+        // Add active class to clicked tab
+        link.classList.add('active');
+        
+        // Get the target tab content id
+        const targetId = link.getAttribute('href');
+        if (targetId) {
+          // Show the target tab content
+          const targetPane = document.querySelector(targetId);
+          if (targetPane) {
+            targetPane.classList.add('show');
+            targetPane.classList.add('active');
+          }
+        }
+      });
+    });
+  }
+
+  validateSqlQuery() {
+    if (!this.sqlQuery || this.sqlQuery.trim() === '') {
+      this.sqlIsValid = false;
+      this.sqlValidationMessage = 'Please enter a SQL query';
+      return;
+    }
+  
+    // Basic validation - check for SELECT keyword
+    // In a real application, you would do more thorough validation
+    // or send it to the backend for validation
+    if (!this.sqlQuery.toUpperCase().includes('SELECT')) {
+      this.sqlIsValid = false;
+      this.sqlValidationMessage = 'Query must contain a SELECT statement';
+      return;
+    }
+  
+    // Simulate validation success
+    this.sqlIsValid = true;
+    this.sqlValidationMessage = 'SQL query is valid';
+  }
+
+  executeSqlQuery() {
+    if (!this.sqlIsValid) {
+      return;
+    }
+  
+    // Show loading indicator
+    this.isLoading = true;
+    
+    // Clear existing report data
+    this.reportData = [];
+  
+    // In a real application, you would send the query to your backend service
+    // Here we'll simulate the process with a timeout
+    setTimeout(() => {
+      // Parse the query to determine the columns (very simplified approach)
+      const columnsMatch = this.sqlQuery.match(/SELECT\s+(.*?)\s+FROM/i);
+      let columns: string[] = [];
+      
+      if (columnsMatch && columnsMatch[1]) {
+        // Handle 'SELECT *' case
+        if (columnsMatch[1].trim() === '*') {
+          // Use all attributes from currently selected tables
+          if (this.currentDisplayTable && this.tableSchemas[this.currentDisplayTable]) {
+            columns = this.tableSchemas[this.currentDisplayTable].map(col => col.name);
+          }
+        } else {
+          // Parse individual columns
+          columns = columnsMatch[1].split(',').map(col => {
+            // Extract column name, handle aliases
+            const parts = col.trim().split(/\s+as\s+/i);
+            return parts.length > 1 ? parts[1].trim() : parts[0].trim();
+          });
+        }
+      }
+  
+      // Generate sample data based on the query
+      // This is just for demonstration - real implementation would execute the query on the server
+      this.generateSampleData(columns);
+      
+      // Update selected attributes to match the query results
+      this.updateSelectedAttributesFromSql(columns);
+      
+      this.isLoading = false;
+    }, 1500); // Simulate network delay
+  }
+
+  private generateSampleData(columns: string[]) {
+    const sampleCount = Math.floor(Math.random() * 10) + 5; // 5-15 rows
+    
+    for (let i = 0; i < sampleCount; i++) {
+      const row: { [key: string]: any } = {};
+      
+      columns.forEach(column => {
+        // Generate different types of sample data based on column name hints
+        if (column.toLowerCase().includes('id')) {
+          row[column] = i + 1;
+        } else if (column.toLowerCase().includes('name')) {
+          row[column] = `Name ${i + 1}`;
+        } else if (column.toLowerCase().includes('date')) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          row[column] = date.toISOString().split('T')[0];
+        } else if (column.toLowerCase().includes('amount') || 
+                   column.toLowerCase().includes('price') || 
+                   column.toLowerCase().includes('cost')) {
+          row[column] = (Math.random() * 1000).toFixed(2);
+        } else if (column.toLowerCase().includes('count') || 
+                   column.toLowerCase().includes('quantity')) {
+          row[column] = Math.floor(Math.random() * 100);
+        } else {
+          row[column] = `Value ${i + 1} for ${column}`;
+        }
+      });
+      
+      this.reportData.push(row);
+    }
+  }
+
+  private updateSelectedAttributesFromSql(columns: string[]) {
+    this.selectedAttributes = columns.map(columnName => {
+      return {
+        table: this.currentDisplayTable || 'Custom SQL',
+        column: columnName,
+        type: this.guessColumnType(columnName),
+        displayName: columnName
+      };
+    });
+  }  
+
+  private guessColumnType(columnName: string): string {
+    const name = columnName.toLowerCase();
+    if (name.includes('id')) return 'INTEGER';
+    if (name.includes('date')) return 'DATE';
+    if (name.includes('price') || name.includes('amount') || name.includes('cost')) return 'DECIMAL';
+    if (name.includes('count') || name.includes('quantity')) return 'INTEGER';
+    return 'VARCHAR';
   }
 
   loadTables() {

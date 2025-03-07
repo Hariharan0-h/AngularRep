@@ -9,6 +9,7 @@
   
   .header {
     margin-bottom: 20px;
+    margin-top: 37px;
     background: linear-gradient(135deg, #35583b 0%, #2d4632 100%);
     padding: 20px;
     border-radius: 8px;
@@ -37,6 +38,52 @@
     flex-direction: column;
     width: 50%;
     gap: 20px;
+  }
+
+  /* Add these styles to your CSS file for the tab navigation */
+
+  .nav-tabs {
+    display: flex;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 15px;
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .nav-item {
+    margin-bottom: -1px;
+  }
+
+  .nav-link {
+    display: block;
+    padding: 8px 16px;
+    border: 1px solid transparent;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    color: #495057;
+    text-decoration: none;
+    transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+    font-weight: 500;
+    font-size: 14px;
+  }
+
+  .nav-link:hover, .nav-link:focus {
+    border-color: #e9ecef #e9ecef #dee2e6;
+    text-decoration: none;
+  }
+
+  .nav-link.active {
+    color: #007bff;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+  }
+
+  .tab-pane {
+    display: none;
+  }
+
+  .tab-pane.show.active {
+    display: block;
   }
   
   .report-designer-panel {
@@ -174,6 +221,101 @@
     font-weight: 500;
   }
   
+  /* Add to your CSS file for SQL editor styling */
+
+  .sql-editor-section {
+    margin-top: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    transition: box-shadow 0.3s ease;
+    width: 100%; /* Ensure the section takes full width */
+  }
+
+  .sql-editor-section:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.08);
+  }
+
+  .sql-editor-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%; /* Ensure the container takes full width */
+  }
+
+  .sql-input {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    resize: vertical;
+    background-color: #f8f9fa;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    padding: 12px;
+    line-height: 1.6;
+    width: 100%; /* Ensure the textarea takes full width */
+    box-sizing: border-box; /* Include padding and border in the element's width */
+    max-width: 100%; /* Prevent the textarea from exceeding its container */
+    min-height: 120px; /* Set a reasonable minimum height */
+    overflow-x: auto; /* Add horizontal scrolling for long lines */
+  }
+
+  .sql-input:focus {
+    background-color: #fff;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    outline: none; /* Remove default focus outline */
+  }
+
+  .sql-editor-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    width: 100%; /* Ensure toolbar takes full width */
+  }
+
+  .sql-editor-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .sql-editor-status {
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  .status-error {
+    color: #dc3545;
+  }
+
+  .status-success {
+    color: #28a745;
+  }
+
+  /* Syntax highlighting for the SQL editor (basic) */
+  .keyword {
+    color: #0066cc;
+    font-weight: bold;
+  }
+
+  .string {
+    color: #008800;
+  }
+
+  .number {
+    color: #aa22ff;
+  }
+
+  .comment {
+    color: #888888;
+    font-style: italic;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
   /* Attributes Container Styling */
   .attributes-container {
     margin-top: 20px;
@@ -189,17 +331,13 @@
   }
   
   .available-attributes-list, .selected-attributes-list {
-    min-height: 150px;
+    min-height: 100px;
     border: 1px dashed #ccc;
     border-radius: 8px;
     padding: 10px;
     overflow-y: auto;
   }
-  
-  .selected-attributes-list {
-    min-height: 100px;
-    background-color: #f9f9f9;
-  }
+
   
   .attribute-controls {
     display: flex;
@@ -209,7 +347,7 @@
   }
   
   .btn-move-all {
-    padding: 8px 12px;
+    padding: 10px 10px;
     border-radius: 50%;
     width: 40px;
     height: 40px;

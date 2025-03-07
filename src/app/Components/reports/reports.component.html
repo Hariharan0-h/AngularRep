@@ -10,8 +10,16 @@
           <h2>Data Sources</h2>
           
           <div class="tabs-container">
+            <ul class="nav nav-tabs" role="tablist">
+              <li class="nav-item">
+                <a class="nav-link active" id="tables-tab-link" data-toggle="tab" href="#tables-tab" role="tab" aria-controls="tables-tab" aria-selected="true">Tables</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" id="views-tab-link" data-toggle="tab" href="#views-tab" role="tab" aria-controls="views-tab" aria-selected="false">Views</a>
+              </li>
+            </ul>
             <div class="tab-content">
-              <div id="tables-tab" class="tab-pane fade show active">
+              <div id="tables-tab" class="tab-pane fade show active" role="tabpanel" aria-labelledby="tables-tab-link">
                 <div class="table-list">
                   <div *ngFor="let table of tables" 
                        class="table-item"
@@ -22,7 +30,7 @@
                 </div>
               </div>
               
-              <div id="views-tab" class="tab-pane fade">
+              <div id="views-tab" class="tab-pane fade" role="tabpanel" aria-labelledby="views-tab-link">
                 <div class="table-list">
                   <div *ngFor="let view of views" 
                        class="table-item"
@@ -53,6 +61,33 @@
                   <span>{{ column.name }}</span>
                   <span class="attribute-type">{{ column.type }}</span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sql-editor-section">
+          <h2>SQL Query Editor</h2>
+          <div class="sql-editor-container">
+            <textarea 
+              class="form-control sql-input" 
+              [(ngModel)]="sqlQuery" 
+              placeholder="Enter your SQL query here..."
+              rows="6"></textarea>
+            
+            <div class="sql-editor-toolbar">
+              <div class="sql-editor-status" *ngIf="sqlValidationMessage">
+                <span [class.status-error]="!sqlIsValid" [class.status-success]="sqlIsValid">
+                  {{ sqlValidationMessage }}
+                </span>
+              </div>
+              <div class="sql-editor-actions">
+                <button class="btn btn-outline-primary btn-sm" (click)="validateSqlQuery()">
+                  <i class="fas fa-check"></i> Validate
+                </button>
+                <button class="btn btn-primary btn-sm" (click)="executeSqlQuery()" [disabled]="!sqlIsValid || !sqlQuery">
+                  <i class="fas fa-play"></i> Execute
+                </button>
               </div>
             </div>
           </div>

@@ -1,23 +1,4 @@
-<!-- Main App Layout -->
-<div class="app-container">
-  <!-- Sidebar Component -->
-  <app-sidebar [appName]="appName"></app-sidebar>
-  
-  <!-- Main Content Area -->
-  <div class="content-area">
-    <!-- Header Section -->
-    <header class="app-header">
-      📊 Dynamic Reporting Tool
-    </header>
-    
-    <!-- Page Content from Router -->
-    <div class="page-content">
-      <router-outlet></router-outlet>
-    </div>
-    
-    <!-- Global Footer -->
-    <!-- <div class="app-footer">
-      © 2025 {{ appName }}
-    </div> -->
-  </div>
+<app-sidebar [appName]="appName"></app-sidebar>
+<div class="page-container">
+  <router-outlet></router-outlet>
 </div>
