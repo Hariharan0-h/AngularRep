@@ -1,0 +1,120 @@
+<div class="container">
+    <header>
+      <div class="logo">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 5C13.6569 5 15 6.34315 15 8C15 9.65685 13.6569 11 12 11C10.3431 11 9 9.65685 9 8C9 6.34315 10.3431 5 12 5Z" fill="#1a237e"/>
+          <path d="M12 13C14.6024 13 16.8312 14.1881 18 16.0004C16.8312 17.8128 14.6024 19 12 19C9.39759 19 7.16876 17.8128 6 16.0004C7.16876 14.1881 9.39759 13 12 13Z" fill="#1a237e"/>
+          <path d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z" stroke="#d4af37" stroke-width="2"/>
+        </svg>
+        <h1>Aravind<span>Eye Care</span> Dashboard</h1>
+      </div>
+      <div class="date-display">{{ currentDate | date:'fullDate' }}</div>
+    </header>
+    
+    <div class="dashboard-grid" *ngIf="dashboardData">
+      <div class="stat-card">
+        <div class="stat-icon">👨‍⚕️</div>
+        <h3>DOCTORS</h3>
+        <div class="stat-value">{{ uniqueDoctors.length }}</div>
+        <div class="stat-trend">Specialists in eye care</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">👨‍👩‍👧‍👦</div>
+        <h3>PATIENTS</h3>
+        <div class="stat-value">{{ dashboardData.length }}</div>
+        <div class="stat-trend">Active patients</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <h3>APPOINTMENTS</h3>
+        <div class="stat-value">{{ dashboardData.length }}</div>
+        <div class="stat-trend">Upcoming appointments</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <h3>REVENUE</h3>
+        <div class="stat-value">₹{{ totalRevenue }}</div>
+        <div class="stat-trend">Total revenue</div>
+      </div>
+    </div>
+    
+    <div class="chart-row" *ngIf="dashboardData">
+      <div class="chart-container">
+        <div class="chart-header">
+          <div class="chart-title">Revenue by Treatment</div>
+          <div class="filter-controls">
+            <select id="chart-filter" (change)="filterChart($event)">
+              <option value="all">All Time</option>
+              <option value="week">This Week</option>
+              <option value="month" selected>This Month</option>
+            </select>
+          </div>
+        </div>
+        <canvas #revenueChart></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-header">
+          <div class="chart-title">Payment Status</div>
+        </div>
+        <canvas #paymentChart></canvas>
+      </div>
+    </div>
+    
+    <div class="chart-row" *ngIf="dashboardData">
+      <div class="table-container">
+        <div class="table-header">
+          <div class="table-title">Upcoming Appointments</div>
+          <div class="search-container">
+            <div class="search-icon">🔍</div>
+            <input type="text" placeholder="Search patient..." (input)="searchPatients($event)">
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Patient</th>
+              <th>Doctor</th>
+              <th>Date & Time</th>
+              <th>Treatment</th>
+              <th>Cost</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of filteredData">
+              <td>{{ item.patientfirstname }} {{ item.patientlastname }}</td>
+              <td>{{ item.doctorfirstname }} {{ item.doctorlastname }}</td>
+              <td>{{ item.appointmentdate | date:'medium' }}</td>
+              <td>{{ item.treatmentname }}</td>
+              <td>₹{{ item.treatmentcost }}</td>
+              <td>
+                <span class="status" [ngClass]="item.paymentstatus === 'Paid' ? 'paid' : 'pending'">
+                  {{ item.paymentstatus }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="chart-container">
+        <div class="chart-header">
+          <div class="chart-title">Doctor Workload</div>
+        </div>
+        <div class="doctor-list">
+          <div class="doctor-item" *ngFor="let doctor of doctorWorkload">
+            <div class="doctor-avatar">
+              {{ doctor.initials }}
+            </div>
+            <div class="doctor-info">
+              <h4>{{ doctor.name }}</h4>
+              <p>{{ doctor.specialization }} | {{ doctor.appointmentCount }} appointments</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- <footer>
+      &copy; {{ currentDate | date:'yyyy' }} VisionCare Eye Hospital. All rights reserved.
+    </footer> -->
+  </div>

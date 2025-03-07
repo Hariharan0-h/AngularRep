@@ -1,0 +1,35 @@
+<!-- Hamburger Menu Button -->
+<div class="hamburger" [class.active]="isSidebarOpen" (click)="toggleSidebar()">
+    <span class="bar"></span>
+    <span class="bar"></span>
+    <span class="bar"></span>
+  </div>
+  
+  <!-- Sidebar -->
+  <div class="sidebar" [class.open]="isSidebarOpen">
+    <!-- Close button (X) for mobile -->
+    <!-- <button class="close-button" (click)="toggleSidebar()"></button> -->
+    
+    <div class="brand">
+      <div class="brand-logo">
+        <span class="logo-text">{{ appName }}</span>
+      </div>
+    </div>
+    
+    <div class="menu-container">
+      <ul>
+        <li *ngFor="let item of menuItems" 
+            (click)="navigate(item.route)" 
+            [class.active]="currentRoute === item.route">
+          <img [src]="'assets/icons/' + item.label.toLowerCase() + '.png'" 
+               alt="{{ item.label }}" 
+               class="icon" />
+          <span>{{ item.label }}</span>
+        </li>
+      </ul>
+    </div>
+    
+    <div class="sidebar-footer">
+      © 2025 {{ appName }}
+    </div>
+  </div>
