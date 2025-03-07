@@ -28,6 +28,10 @@ export class ReportsComponent implements OnInit {
   sqlIsValid: boolean = false;
   sqlValidationMessage: string = '';
   
+  // Flag to prevent recursive updates between UI and SQL
+  private updatingFromSql: boolean = false;
+  private updatingFromUI: boolean = false;
+  
   // To track which table's filters and group by are being displayed
   currentDisplayTable: string = '';
 
@@ -39,9 +43,7 @@ export class ReportsComponent implements OnInit {
     this.initTabs();
   }
 
-  // Add this to your component's TypeScript file
-
-// Method to initialize tabs (call this in ngOnInit)
+  // Method to initialize tabs (call this in ngOnInit)
   initTabs() {
     const tabLinks = document.querySelectorAll('.nav-link');
     
@@ -73,6 +75,77 @@ export class ReportsComponent implements OnInit {
     });
   }
 
+  // Add a method to generate SQL from UI selections
+  generateSqlFromSelections() {
+    if (this.updatingFromSql || this.selectedTables.length === 0 || this.selectedAttributes.length === 0) {
+      return;
+    }
+    
+    this.updatingFromUI = true;
+    
+    try {
+      // Start building the SELECT part
+      let selectPart = 'SELECT ';
+      
+      // Add selected attributes
+      const columnParts = this.selectedAttributes.map(attr => {
+        const {table, column} = attr;
+        return `${table}.${column}`;
+      });
+      
+      selectPart += columnParts.join(', ');
+      
+      // Add FROM part with tables
+      let fromPart = ' FROM ' + this.selectedTables.join(', ');
+      
+      // Add WHERE part for filters
+      let wherePart = '';
+      if (this.activeFilters.length > 0) {
+        wherePart = ' WHERE ';
+        const filterParts = this.activeFilters.map(filter => {
+          if (!filter.field || !filter.value) return null;
+          
+          const fieldParts = filter.field.split('.');
+          const field = fieldParts.length === 2 ? filter.field : `${this.currentDisplayTable}.${filter.field}`;
+          
+          switch (filter.operator) {
+            case 'equals':
+              return `${field} = '${filter.value}'`;
+            case 'contains':
+              return `${field} LIKE '%${filter.value}%'`;
+            case 'greaterThan':
+              return `${field} > ${filter.value}`;
+            case 'lessThan':
+              return `${field} < ${filter.value}`;
+            default:
+              return null;
+          }
+        }).filter(part => part !== null);
+        
+        if (filterParts.length > 0) {
+          wherePart += filterParts.join(' AND ');
+        } else {
+          wherePart = '';
+        }
+      }
+      
+      // Add GROUP BY part
+      let groupByPart = '';
+      if (this.selectedGroupBy) {
+        groupByPart = ` GROUP BY ${this.selectedGroupBy}`;
+      }
+      
+      // Combine all parts to form the complete SQL query
+      this.sqlQuery = selectPart + fromPart + wherePart + groupByPart;
+      
+      // Validate the generated SQL query
+      this.validateSqlQuery();
+    } finally {
+      this.updatingFromUI = false;
+    }
+  }
+
+  // Update the validateSqlQuery method to parse SQL and update UI components
   validateSqlQuery() {
     if (!this.sqlQuery || this.sqlQuery.trim() === '') {
       this.sqlIsValid = false;
@@ -81,17 +154,254 @@ export class ReportsComponent implements OnInit {
     }
   
     // Basic validation - check for SELECT keyword
-    // In a real application, you would do more thorough validation
-    // or send it to the backend for validation
     if (!this.sqlQuery.toUpperCase().includes('SELECT')) {
       this.sqlIsValid = false;
       this.sqlValidationMessage = 'Query must contain a SELECT statement';
       return;
     }
   
-    // Simulate validation success
-    this.sqlIsValid = true;
-    this.sqlValidationMessage = 'SQL query is valid';
+    // More comprehensive validation
+    try {
+      // Parse the query to extract tables, columns, filters, etc.
+      if (!this.updatingFromUI) {
+        this.parseSqlQuery();
+      }
+      
+      this.sqlIsValid = true;
+      this.sqlValidationMessage = 'SQL query is valid';
+    } catch (e) {
+      this.sqlIsValid = false;
+      this.sqlValidationMessage = `Invalid SQL: ${(e as Error).message}`;
+    }
+  }
+
+  // Add a method to parse SQL query and update UI selections
+  parseSqlQuery() {
+    if (this.updatingFromUI) return;
+    
+    this.updatingFromSql = true;
+    
+    try {
+      const sql = this.sqlQuery.trim().toUpperCase();
+      
+      // Extract tables
+      const fromMatch = sql.match(/FROM\s+([^WHERE|GROUP BY|ORDER BY|HAVING|LIMIT]+)/i);
+      if (fromMatch && fromMatch[1]) {
+        const tablesStr = fromMatch[1].trim();
+        const tablesList = tablesStr.split(',').map(t => t.trim());
+        
+        // Clear previously selected tables
+        this.selectedTables = [];
+        
+        // Add newly selected tables and load their schemas
+        tablesList.forEach(tableName => {
+          // Remove aliases if present
+          const parts = tableName.split(/\s+AS\s+|\s+/i);
+          const table = parts[0].trim();
+          
+          if (!this.selectedTables.includes(table)) {
+            this.selectedTables.push(table);
+            
+            // Load table schema if not already loaded
+            if (!this.tableSchemas[table]) {
+              this.loadTableSchema(table);
+            }
+          }
+        });
+        
+        // Set current display table to the first table
+        if (this.selectedTables.length > 0 && 
+            (!this.currentDisplayTable || !this.selectedTables.includes(this.currentDisplayTable))) {
+          this.setCurrentDisplayTable(this.selectedTables[0]);
+        }
+      }
+      
+      // Extract selected columns
+      const selectMatch = sql.match(/SELECT\s+(.+?)\s+FROM/i);
+      if (selectMatch && selectMatch[1]) {
+        const columnsStr = selectMatch[1].trim();
+        
+        // Handle SELECT * case
+        if (columnsStr === '*') {
+          // Will be handled after tables are loaded
+        } else {
+          // Clear previously selected attributes
+          this.selectedAttributes = [];
+          
+          // Parse individual columns, handling functions and aliases
+          const columnsList = this.parseColumnList(columnsStr);
+          
+          // Update selected attributes based on parsed columns
+          // This will happen asynchronously after table schemas are loaded
+          // so we'll set up a timeout to do this after schemas are likely loaded
+          setTimeout(() => {
+            this.updateSelectedAttributesFromParsedColumns(columnsList);
+          }, 1000);
+        }
+      }
+      
+      // Extract WHERE clause for filters
+      const whereMatch = sql.match(/WHERE\s+(.+?)(?:\s+GROUP BY|\s+ORDER BY|\s+HAVING|\s+LIMIT|$)/i);
+      if (whereMatch && whereMatch[1]) {
+        const whereStr = whereMatch[1].trim();
+        
+        // Clear previously active filters
+        this.activeFilters = [];
+        
+        // Parse filters (this is simplified and won't handle all SQL WHERE cases)
+        const conditions = whereStr.split(/\s+AND\s+/i);
+        conditions.forEach(condition => {
+          // Try to parse basic conditions like "table.column = 'value'"
+          const opMatch = condition.match(/(.+?)\s*(=|LIKE|>|<)\s*(.+)/i);
+          if (opMatch) {
+            const field = opMatch[1].trim();
+            const operator = opMatch[2].trim().toUpperCase();
+            let value = opMatch[3].trim();
+            
+            // Remove quotes from string values
+            if (value.startsWith("'") && value.endsWith("'")) {
+              value = value.substring(1, value.length - 1);
+            }
+            
+            // Map SQL operators to our filter operators
+            let filterOp;
+            switch (operator) {
+              case '=': filterOp = 'equals'; break;
+              case 'LIKE': filterOp = 'contains'; break;
+              case '>': filterOp = 'greaterThan'; break;
+              case '<': filterOp = 'lessThan'; break;
+              default: filterOp = 'equals';
+            }
+            
+            // Add to active filters
+            this.activeFilters.push({
+              field: field,
+              operator: filterOp,
+              value: value.replace(/%/g, '') // Remove % from LIKE patterns
+            });
+          }
+        });
+      }
+      
+      // Extract GROUP BY clause
+      const groupByMatch = sql.match(/GROUP BY\s+(.+?)(?:\s+ORDER BY|\s+HAVING|\s+LIMIT|$)/i);
+      if (groupByMatch && groupByMatch[1]) {
+        this.selectedGroupBy = groupByMatch[1].trim();
+      } else {
+        this.selectedGroupBy = '';
+      }
+    } finally {
+      this.updatingFromSql = false;
+    }
+  }
+
+  // Helper method to parse column list from SQL SELECT clause
+  parseColumnList(columnsStr: string): any[] {
+    const columns: any[] = [];
+    
+    // Split by commas, but respect parentheses (for functions)
+    let current = '';
+    let parenLevel = 0;
+    
+    for (let i = 0; i < columnsStr.length; i++) {
+      const char = columnsStr[i];
+      
+      if (char === '(') {
+        parenLevel++;
+        current += char;
+      } else if (char === ')') {
+        parenLevel--;
+        current += char;
+      } else if (char === ',' && parenLevel === 0) {
+        columns.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    // Add the last column
+    if (current.trim()) {
+      columns.push(current.trim());
+    }
+    
+    // Process each column to extract table, column name, and alias
+    return columns.map(col => {
+      const parts = col.split(/\s+AS\s+|\s+/i);
+      
+      let column, alias;
+      if (parts.length > 1) {
+        column = parts[0].trim();
+        alias = parts[parts.length - 1].trim();
+      } else {
+        column = parts[0].trim();
+        alias = column;
+      }
+      
+      // Check if column contains table name (e.g., "table.column")
+      const tableParts = column.split('.');
+      if (tableParts.length > 1) {
+        return {
+          fullExpression: col,
+          table: tableParts[0],
+          column: tableParts[1],
+          alias: alias
+        };
+      } else {
+        return {
+          fullExpression: col,
+          table: '',  // Will be filled later based on schema matching
+          column: column,
+          alias: alias
+        };
+      }
+    });
+  }
+
+  // Helper method to update selected attributes based on parsed columns
+  updateSelectedAttributesFromParsedColumns(parsedColumns: any[]) {
+    // Reset selected attributes
+    this.selectedAttributes = [];
+    
+    parsedColumns.forEach(parsed => {
+      // If table is not specified in the column, try to determine from available tables
+      if (!parsed.table && this.selectedTables.length > 0) {
+        // Try to find matching column in any of the selected tables
+        for (const table of this.selectedTables) {
+          if (this.tableSchemas[table]) {
+            const matchingColumn = this.tableSchemas[table].find(
+              col => col.name.toUpperCase() === parsed.column.toUpperCase()
+            );
+            
+            if (matchingColumn) {
+              parsed.table = table;
+              break;
+            }
+          }
+        }
+        
+        // If still no match, assign to first table
+        if (!parsed.table && this.selectedTables.length > 0) {
+          parsed.table = this.selectedTables[0];
+        }
+      }
+      
+      if (parsed.table) {
+        // Add to selected attributes
+        this.selectedAttributes.push({
+          table: parsed.table,
+          column: parsed.column,
+          type: this.guessColumnType(parsed.column),
+          displayName: parsed.alias || `${parsed.table}.${parsed.column}`
+        });
+      }
+    });
+    
+    // Update available attributes
+    this.updateAvailableAttributes();
+    
+    // Generate report with new selections
+    this.generateReport();
   }
 
   executeSqlQuery() {
@@ -121,11 +431,8 @@ export class ReportsComponent implements OnInit {
           }
         } else {
           // Parse individual columns
-          columns = columnsMatch[1].split(',').map(col => {
-            // Extract column name, handle aliases
-            const parts = col.trim().split(/\s+as\s+/i);
-            return parts.length > 1 ? parts[1].trim() : parts[0].trim();
-          });
+          const parsedColumns = this.parseColumnList(columnsMatch[1]);
+          columns = parsedColumns.map(col => col.alias || col.column);
         }
       }
   
@@ -133,8 +440,10 @@ export class ReportsComponent implements OnInit {
       // This is just for demonstration - real implementation would execute the query on the server
       this.generateSampleData(columns);
       
-      // Update selected attributes to match the query results
-      this.updateSelectedAttributesFromSql(columns);
+      // Update selected attributes to match the query results if not already done
+      if (this.updatingFromSql) {
+        this.updateSelectedAttributesFromSql(columns);
+      }
       
       this.isLoading = false;
     }, 1500); // Simulate network delay
@@ -229,6 +538,9 @@ export class ReportsComponent implements OnInit {
       if (this.selectedTables.length === 1) {
         this.setCurrentDisplayTable(tableName);
       }
+      
+      // Generate SQL query based on the new selection
+      this.generateSqlFromSelections();
     }
   }
 
@@ -261,6 +573,11 @@ export class ReportsComponent implements OnInit {
             if (this.currentDisplayTable === tableName || !this.currentDisplayTable) {
                 this.updateFilterOptionsForTable(tableName);
                 this.updateGroupByOptionsForTable(tableName);
+            }
+            
+            // Update SQL query to reflect the newly loaded table schema
+            if (!this.updatingFromSql) {
+                this.generateSqlFromSelections();
             }
             
             this.isLoading = false;
@@ -332,6 +649,10 @@ export class ReportsComponent implements OnInit {
       this.availableAttributes = this.availableAttributes.filter(
         attr => !(attr.table === attribute.table && attr.column === attribute.column)
       );
+      
+      // Update SQL query based on the new selection
+      this.generateSqlFromSelections();
+      
       this.generateReport();
     }
   }
@@ -343,6 +664,10 @@ export class ReportsComponent implements OnInit {
     
     // Remove from selected attributes
     this.selectedAttributes.splice(index, 1);
+    
+    // Update SQL query to reflect removed attribute
+    this.generateSqlFromSelections();
+    
     this.generateReport();
   }
 
@@ -356,6 +681,10 @@ export class ReportsComponent implements OnInit {
     
     this.selectedAttributes = [...this.selectedAttributes, ...newAttributes];
     this.availableAttributes = [];
+    
+    // Update SQL query based on selecting all attributes
+    this.generateSqlFromSelections();
+    
     this.generateReport();
   }
 
@@ -364,6 +693,9 @@ export class ReportsComponent implements OnInit {
     this.availableAttributes = [...this.availableAttributes, ...this.selectedAttributes];
     this.selectedAttributes = [];
     this.reportData = [];
+    
+    // Update SQL query to reflect that no attributes are selected
+    this.generateSqlFromSelections();
   }
 
   removeTable(tableName: string) {
@@ -387,6 +719,9 @@ export class ReportsComponent implements OnInit {
       }
     }
     
+    // Update SQL query to reflect removed table
+    this.generateSqlFromSelections();
+    
     this.generateReport();
   }
 
@@ -397,20 +732,33 @@ export class ReportsComponent implements OnInit {
         operator: 'equals',
         value: ''
       });
+      
+      // Don't generate SQL yet as the filter is incomplete without a value
     }
   }
 
   removeFilter(index: number) {
     this.activeFilters.splice(index, 1);
+    
+    // Update SQL query to reflect removed filter
+    this.generateSqlFromSelections();
+    
     this.generateReport();
   }
 
   applyFilters() {
+    // Update SQL query to reflect the applied filters
+    this.generateSqlFromSelections();
+    
     this.generateReport();
   }
 
   setGroupBy(field: string) {
     this.selectedGroupBy = field;
+    
+    // Update SQL query to reflect the group by change
+    this.generateSqlFromSelections();
+    
     this.generateReport();
   }
 
@@ -532,65 +880,57 @@ export class ReportsComponent implements OnInit {
                     this.reportData = transformedData;
                 } else {
                     // No grouping - create transformed data based on selected attributes
-                    this.reportData = filteredData.map(item => {
+                    const transformedData = filteredData.map(item => {
                         const result: any = {};
                         
+                        // Map only the selected attributes to the result
                         this.selectedAttributes.forEach(attr => {
                             const columnName = attr.column;
-                            
-                            // For primary table, directly map the values
-                            if (attr.table === primaryTable) {
-                                result[attr.displayName] = item[columnName];
-                            } else {
-                                // For related tables
-                                result[attr.displayName] = 'N/A';
-                            }
+                            result[attr.displayName] = item[columnName];
                         });
                         
                         return result;
                     });
+                    
+                    this.reportData = transformedData;
                 }
                 
-                console.log('Processed report data:', this.reportData);
                 this.isLoading = false;
             },
             (error) => {
-                console.error(`Error loading data for ${primaryTable}`, error);
+                console.error('Error generating report', error);
                 this.isLoading = false;
             }
         );
+    } else {
+        // No tables selected
+        this.reportData = [];
+        this.isLoading = false;
     }
-  }
+}
 
-  // Helper method to check if an array contains numeric values
-  isNumericArray(values: any[]): boolean {
-    if (!values || values.length === 0) return false;
-    
-    // Check if at least 50% of values are numeric
-    const numericCount = values.filter(val => !isNaN(Number(val)) && val !== '').length;
-    return numericCount / values.length >= 0.5;
-  }
+// Helper method to check if an array contains only numeric values
+private isNumericArray(values: any[]): boolean {
+    return values.every(value => !isNaN(Number(value)));
+}
 
-  calculateAggregate(values: number[], type: string): number {
-    if (!values || values.length === 0) return 0;
-    
+// Helper method to calculate aggregate values
+private calculateAggregate(values: number[], type: string): number {
     switch (type) {
-      case 'sum':
-        return values.reduce((sum, val) => sum + val, 0);
-      case 'avg':
-        return Number((values.reduce((sum, val) => sum + val, 0) / values.length).toFixed(2));
-      case 'count':
-        return values.length;
-      case 'min':
-        return Math.min(...values);
-      case 'max':
-        return Math.max(...values);
-      default:
-        return values.reduce((sum, val) => sum + val, 0);
+        case 'sum':
+            return values.reduce((sum, value) => sum + value, 0);
+        case 'avg':
+            return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+        case 'min':
+            return values.length > 0 ? Math.min(...values) : 0;
+        case 'max':
+            return values.length > 0 ? Math.max(...values) : 0;
+        default:
+            return 0;
     }
-  }
+}
 
-  exportToExcel() {
+exportToExcel() {
     if (this.reportData.length === 0) return;
     
     // Create worksheet from JSON data
