@@ -1,8 +1,11 @@
 import { Component, OnInit } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import * as XLSX from 'xlsx';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { forkJoin, map, Observable } from 'rxjs';
 
 @Component({
   selector: 'app-reports',
@@ -551,41 +554,41 @@ export class ReportsComponent implements OnInit {
     this.updateGroupByOptionsForTable(tableName);
   }
 
+  // Fix the loadTableSchema method to properly handle SQL attribute types
   loadTableSchema(tableName: string) {
     this.isLoading = true;
     this.http.get<any[]>(`${this.baseUrl}/schema/${tableName}`).subscribe(
-        (schema) => {
-            console.log('Schema for table:', tableName, schema);
-            
-            // Normalize the schema data to ensure consistent property names
-            const normalizedSchema = schema.map(column => {
-                return {
-                    name: column.name || column.column_name || '',
-                    type: column.type || column.data_type || '',
-                    // Add other properties as needed
-                };
-            });
-            
-            this.tableSchemas[tableName] = normalizedSchema;
-            this.updateAvailableAttributes();
-            
-            // Update filter options and group by options if this is the current display table
-            if (this.currentDisplayTable === tableName || !this.currentDisplayTable) {
-                this.updateFilterOptionsForTable(tableName);
-                this.updateGroupByOptionsForTable(tableName);
-            }
-            
-            // Update SQL query to reflect the newly loaded table schema
-            if (!this.updatingFromSql) {
-                this.generateSqlFromSelections();
-            }
-            
-            this.isLoading = false;
-        },
-        (error) => {
-            console.error(`Error loading schema for ${tableName}`, error);
-            this.isLoading = false;
+      (schema) => {
+        console.log('Schema for table:', tableName, schema);
+        
+        // Normalize the schema data with improved type handling
+        const normalizedSchema = schema.map(column => {
+          // Extract the SQL type and convert to friendly type name
+          let friendlyType = this.getSqlFriendlyType(column.type || column.data_type || '');
+          
+          return {
+            name: column.name || column.column_name || '',
+            type: friendlyType,
+            originalType: column.type || column.data_type || '',
+            nullable: column.is_nullable === 'YES' || column.nullable === true,
+            // Other properties as needed
+          };
+        });
+        
+        this.tableSchemas[tableName] = normalizedSchema;
+        this.updateAvailableAttributes();
+        
+        if (this.currentDisplayTable === tableName || !this.currentDisplayTable) {
+          this.updateFilterOptionsForTable(tableName);
+          this.updateGroupByOptionsForTable(tableName);
         }
+        
+        this.isLoading = false;
+      },
+      (error) => {
+        console.error(`Error loading schema for ${tableName}`, error);
+        this.isLoading = false;
+      }
     );
   }
 
@@ -764,149 +767,250 @@ export class ReportsComponent implements OnInit {
 
   generateReport() {
     if (this.selectedAttributes.length === 0) {
-        this.reportData = [];
-        return;
+      this.reportData = [];
+      return;
     }
-
+  
     this.isLoading = true;
-
+  
     if (this.selectedTables.length > 0) {
-        const primaryTable = this.selectedTables[0];
-
-        this.http.get<any[]>(`${this.baseUrl}/data/${primaryTable}`).subscribe(
-            (data) => {
-                console.log('Raw data received:', data);
-                let filteredData = [...data];
-
-                // Apply filters
-                if (this.activeFilters.length > 0) {
-                    this.activeFilters.forEach(filter => {
-                        if (!filter.field || !filter.value) return;
-                        
-                        const [tableName, columnName] = filter.field.split('.');
-                        
-                        filteredData = filteredData.filter(item => {
-                            // Handle null or undefined values
-                            if (item[columnName] === null || item[columnName] === undefined) {
-                                return filter.operator === 'equals' && (filter.value === 'null' || filter.value === '');
-                            }
-                            
-                            const itemValue = String(item[columnName]).toLowerCase();
-                            const filterValue = String(filter.value).toLowerCase();
-                            
-                            switch (filter.operator) {
-                                case 'equals':
-                                    return itemValue === filterValue;
-                                case 'contains':
-                                    return itemValue.includes(filterValue);
-                                case 'greaterThan':
-                                    return Number(item[columnName]) > Number(filter.value);
-                                case 'lessThan':
-                                    return Number(item[columnName]) < Number(filter.value);
-                                default:
-                                    return true;
-                            }
-                        });
-                    });
-                }
-
-                // Apply groupBy if selected
-                if (this.selectedGroupBy && this.selectedGroupBy !== '') {
-                    const [tableName, columnName] = this.selectedGroupBy.split('.');
-                    
-                    // Group the data
-                    const groupedData: { [key: string]: any[] } = {};
-                    
-                    filteredData.forEach(item => {
-                        // Handle null and undefined values
-                        const groupValue = item[columnName] !== null && item[columnName] !== undefined 
-                            ? String(item[columnName]) 
-                            : 'null';
-                            
-                        if (!groupedData[groupValue]) {
-                            groupedData[groupValue] = [];
-                        }
-                        groupedData[groupValue].push(item);
-                    });
-
-                    // Transform the grouped data for display
-                    const transformedData = Object.keys(groupedData).map(key => {
-                        const result: any = {};
-                        const items = groupedData[key];
-                        
-                        // For each selected attribute, calculate appropriate aggregation
-                        this.selectedAttributes.forEach(attr => {
-                            const attrColumn = attr.column;
-                            
-                            // For the grouping column, use the group key
-                            if (attr.table === tableName && attr.column === columnName) {
-                                result[attr.displayName] = key === 'null' ? null : key;
-                            } else {
-                                // For numeric columns, apply aggregation
-                                const values = items.map(item => item[attrColumn])
-                                    .filter(v => v !== null && v !== undefined);
-                                
-                                // Determine if values are numeric
-                                const isNumeric = this.isNumericArray(values);
-                                
-                                if (isNumeric) {
-                                    // For numeric values, apply sum aggregation
-                                    const numericValues = values.map(v => Number(v));
-                                    result[attr.displayName] = this.calculateAggregate(numericValues, 'sum');
-                                } else if (values.length > 0) {
-                                    // For non-numeric values, count unique values
-                                    const uniqueValues = [...new Set(values)];
-                                    
-                                    if (uniqueValues.length === 1) {
-                                        // If all values are the same, use that value
-                                        result[attr.displayName] = uniqueValues[0];
-                                    } else if (uniqueValues.length <= 3) {
-                                        // If there are few unique values, show them all
-                                        result[attr.displayName] = uniqueValues.join(', ');
-                                    } else {
-                                        // Otherwise, show count of unique values
-                                        result[attr.displayName] = `${uniqueValues.length} unique values`;
-                                    }
-                                } else {
-                                    // No values
-                                    result[attr.displayName] = 'N/A';
-                                }
-                            }
-                        });
-                        
-                        return result;
-                    });
-                    
-                    this.reportData = transformedData;
-                } else {
-                    // No grouping - create transformed data based on selected attributes
-                    const transformedData = filteredData.map(item => {
-                        const result: any = {};
-                        
-                        // Map only the selected attributes to the result
-                        this.selectedAttributes.forEach(attr => {
-                            const columnName = attr.column;
-                            result[attr.displayName] = item[columnName];
-                        });
-                        
-                        return result;
-                    });
-                    
-                    this.reportData = transformedData;
-                }
-                
-                this.isLoading = false;
-            },
-            (error) => {
-                console.error('Error generating report', error);
-                this.isLoading = false;
-            }
+      // If multiple tables are selected, use joins
+      if (this.selectedTables.length > 1) {
+        const requestData = {
+          tables: this.selectedTables,
+          columns: this.selectedAttributes.map(attr => ({ 
+            table: attr.table, 
+            column: attr.column 
+          })),
+          filters: this.activeFilters,
+          groupBy: this.selectedGroupBy ? {
+            table: this.selectedGroupBy.split('.')[0],
+            column: this.selectedGroupBy.split('.')[1]
+          } : null
+        };
+  
+        this.http.post<any[]>(`${this.baseUrl}/query`, requestData).subscribe(
+          (data) => {
+            console.log('Raw joined data received:', data);
+            // Process the joined data
+            this.processReportData(data, true);
+            this.isLoading = false;
+          },
+          (error) => {
+            console.error('Error generating report with joins', error);
+            this.isLoading = false;
+          }
         );
+      } else {
+        // Single table query - use query params approach for better flexibility
+        const primaryTable = this.selectedTables[0];
+        
+        // Prepare query parameters
+        const queryParams = new HttpParams()
+          .set('tables', primaryTable)
+          .set('attributes', this.selectedAttributes
+            .filter(attr => attr.table === primaryTable)
+            .map(attr => attr.column)
+            .join(','))
+          .set('filters', this.serializeFilters())
+          .set('groupBy', this.selectedGroupBy || '');
+  
+        // Use GET with query params for single table
+        this.http.get<any[]>(`${this.baseUrl}/data/${primaryTable}`, { params: queryParams }).subscribe(
+          (data) => {
+            console.log('Raw data received:', data);
+            let filteredData = [...data];
+  
+            // Apply filters if the backend doesn't support filtering
+            if (this.activeFilters.length > 0 && !queryParams.has('filters')) {
+              filteredData = this.applyClientSideFilters(filteredData);
+            }
+  
+            // Process the filtered data
+            this.processReportData(filteredData, false);
+            this.isLoading = false;
+          },
+          (error) => {
+            console.error(`Error generating report for ${primaryTable}`, error);
+            this.isLoading = false;
+          }
+        );
+      }
     } else {
-        // No tables selected
-        this.reportData = [];
-        this.isLoading = false;
+      // No tables selected
+      this.reportData = [];
+      this.isLoading = false;
     }
+  }
+  
+  applyClientSideFilters(data: any[]): any[] {
+    return data.filter(item => {
+      return this.activeFilters.every(filter => {
+        if (!filter.field || !filter.value) return true;
+        
+        const [tableName, columnName] = filter.field.split('.');
+        
+        // Handle null or undefined values
+        if (item[columnName] === null || item[columnName] === undefined) {
+          return filter.operator === 'equals' && (filter.value === 'null' || filter.value === '');
+        }
+        
+        const itemValue = String(item[columnName]).toLowerCase();
+        const filterValue = String(filter.value).toLowerCase();
+        
+        switch (filter.operator) {
+          case 'equals':
+            return itemValue === filterValue;
+          case 'contains':
+            return itemValue.includes(filterValue);
+          case 'greaterThan':
+            return Number(item[columnName]) > Number(filter.value);
+          case 'lessThan':
+            return Number(item[columnName]) < Number(filter.value);
+          default:
+            return true;
+        }
+      });
+    });
+  }
+
+  executeQuery(queryParams: any): Observable<any[]> {
+    let params = new HttpParams();
+    
+    // Add parameters to request
+    Object.keys(queryParams).forEach(key => {
+      if (queryParams[key]) {
+        params = params.set(key, queryParams[key]);
+      }
+  });
+
+  // Use a single endpoint that handles joins and complex queries
+  return this.http.get<any[]>(`${this.baseUrl}/query`, { params });
+}
+
+serializeFilters(): string {
+  if (!this.activeFilters || this.activeFilters.length === 0) {
+    return '';
+  }
+  
+  return this.activeFilters
+    .filter(filter => filter.field && filter.operator && filter.value !== '')
+    .map(filter => `${filter.field}|${filter.operator}|${filter.value}`)
+    .join(';');
+}
+
+// Helper method to process report data with or without grouping
+processReportData(data: any[], isJoinedData: boolean) {
+  if (!data || data.length === 0) {
+    this.reportData = [];
+    return;
+  }
+
+  // Apply grouping if selected
+  if (this.selectedGroupBy && this.selectedGroupBy !== '') {
+    const [tableName, columnName] = this.selectedGroupBy.split('.');
+    
+    // Group the data
+    const groupedData: { [key: string]: any[] } = {};
+    
+    data.forEach(item => {
+      // Handle property access based on whether data is joined
+      const groupValue = isJoinedData ? 
+        (item[tableName]?.[columnName] !== null && item[tableName]?.[columnName] !== undefined ? 
+          String(item[tableName][columnName]) : 'null') :
+        (item[columnName] !== null && item[columnName] !== undefined ? 
+          String(item[columnName]) : 'null');
+          
+      if (!groupedData[groupValue]) {
+        groupedData[groupValue] = [];
+      }
+      groupedData[groupValue].push(item);
+    });
+
+    // Transform the grouped data for display
+    this.reportData = Object.keys(groupedData).map(key => {
+      const result: any = {};
+      const items = groupedData[key];
+      
+      // For each selected attribute, apply aggregation
+      this.selectedAttributes.forEach(attr => {
+        const attrTable = attr.table;
+        const attrColumn = attr.column;
+        
+        // For the grouping column, use the group key
+        if (attrTable === tableName && attrColumn === columnName) {
+          result[attr.displayName] = key === 'null' ? null : key;
+        } else {
+          // Extract values based on data structure
+          const values = items.map(item => {
+            if (isJoinedData) {
+              return item[attrTable]?.[attrColumn];
+            } else {
+              return item[attrColumn];
+            }
+          }).filter(v => v !== null && v !== undefined);
+          
+          // Apply appropriate aggregation
+          result[attr.displayName] = this.aggregateValues(values, attrColumn);
+        }
+      });
+      
+      return result;
+    });
+  } else {
+    // No grouping - create transformed data based on selected attributes
+    this.reportData = data.map(item => {
+      const result: any = {};
+      
+      this.selectedAttributes.forEach(attr => {
+        const attrTable = attr.table;
+        const attrColumn = attr.column;
+        
+        if (isJoinedData) {
+          // For joined data, access nested properties
+          result[attr.displayName] = item[attrTable]?.[attrColumn] !== undefined ? 
+            item[attrTable][attrColumn] : 'N/A';
+        } else {
+          // For single table data, direct property access
+          result[attr.displayName] = item[attrColumn] !== undefined ? 
+            item[attrColumn] : 'N/A';
+        }
+      });
+      
+      return result;
+    });
+  }
+  
+  console.log('Processed report data:', this.reportData);
+}
+
+aggregateValues(values: any[], columnName: string): any {
+  if (!values || values.length === 0) return 'N/A';
+  
+  // Determine if values are numeric
+  const isNumeric = this.isNumericArray(values);
+  
+  if (isNumeric) {
+    // For numeric values, apply sum aggregation
+    const numericValues = values.map(v => Number(v));
+    return this.calculateAggregate(numericValues, 'sum');
+  } else if (values.length > 0) {
+    // For non-numeric values, provide meaningful representation
+    const uniqueValues = [...new Set(values)];
+    
+    if (uniqueValues.length === 1) {
+      // If all values are the same, use that value
+      return uniqueValues[0];
+    } else if (uniqueValues.length <= 3) {
+      // If there are few unique values, show them all
+      return uniqueValues.join(', ');
+    } else {
+      // Otherwise, show count of unique values
+      return `${uniqueValues.length} unique values`;
+    }
+  } else {
+    return 'N/A';
+  }
 }
 
 // Helper method to check if an array contains only numeric values
@@ -930,76 +1034,188 @@ private calculateAggregate(values: number[], type: string): number {
     }
 }
 
+getSqlFriendlyType(sqlType: string): string {
+  // Extract base type from SQL type definition (remove size, precision, etc.)
+  const baseType = sqlType.split('(')[0].toLowerCase();
+  
+  // Map SQL types to friendly names
+  switch (baseType) {
+    case 'int':
+    case 'bigint':
+    case 'smallint':
+    case 'tinyint':
+    case 'decimal':
+    case 'numeric':
+    case 'float':
+    case 'money':
+      return 'Number';
+      
+    case 'varchar':
+    case 'nvarchar':
+    case 'char':
+    case 'nchar':
+    case 'text':
+    case 'ntext':
+      return 'Text';
+      
+    case 'date':
+    case 'datetime':
+    case 'datetime2':
+    case 'smalldatetime':
+      return 'Date';
+      
+    case 'bit':
+      return 'Boolean';
+      
+    default:
+      return sqlType; // If no match, return the original type
+  }
+}
+
+transformQueryResults(data: any[]): any[] {
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // If we have group by applied, data might already be aggregated from the backend
+  if (this.selectedGroupBy !== '') {
+    return data.map(item => {
+      const result: any = {};
+      
+      this.selectedAttributes.forEach(attr => {
+        const key = attr.displayName;
+        result[key] = item[attr.column] !== undefined ? item[attr.column] : 
+                     (item[attr.displayName] !== undefined ? item[attr.displayName] : null);
+      });
+      
+      return result;
+    });
+  } else {
+    // For non-grouped data, standardize the output format
+    return data.map(item => {
+      const result: any = {};
+      
+      this.selectedAttributes.forEach(attr => {
+        // Handle both simple column names and fully qualified names (table.column)
+        const simpleKey = attr.column;
+        const qualifiedKey = attr.displayName;
+        
+        // Try different ways the API might return the data
+        result[qualifiedKey] = 
+          item[simpleKey] !== undefined ? item[simpleKey] : 
+          item[qualifiedKey] !== undefined ? item[qualifiedKey] :
+          item[attr.table]?.[simpleKey] !== undefined ? item[attr.table][simpleKey] : 
+          null;
+      });
+      
+      return result;
+    });
+  }
+}
+
+fetchRelatedData(primaryData: any[], relatedTables: string[]): Observable<any[]> {
+  if (relatedTables.length === 0) {
+    return new Observable(observer => {
+      observer.next(primaryData);
+      observer.complete();
+    });
+  }
+  
+  // Create an array of observables for each related table
+  const relatedDataObservables = relatedTables.map(tableName => {
+    return this.http.get<any[]>(`${this.baseUrl}/data/${tableName}`);
+  });
+
+  return forkJoin(relatedDataObservables).pipe(
+    map(relatedDataResults => {
+      // Join logic would go here
+      // This is a simplified version that would need to be expanded based on your schema
+      const result = [...primaryData];
+      
+      // For each primary data row, find related data
+      result.forEach(primaryRow => {
+        relatedTables.forEach((tableName, index) => {
+          // You would need to define join conditions based on your schema
+          const relatedData = relatedDataResults[index];
+          primaryRow[`${tableName}_data`] = relatedData;
+        });
+      });
+      
+      return result;
+    })
+  );
+}
+
 exportToExcel() {
-    if (this.reportData.length === 0) return;
+  if (this.reportData.length === 0) return;
+  
+  // Create worksheet from JSON data
+  const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(this.reportData);
+  
+  // Set column widths
+  const columnWidths = this.selectedAttributes.map(() => ({ width: 15 }));
+  worksheet['!cols'] = columnWidths;
+  
+  // Apply styles to header row
+  const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+  for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+    if (!worksheet[cellAddress]) continue;
     
-    // Create worksheet from JSON data
-    const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(this.reportData);
+    // Create formatted cell with styles
+    worksheet[cellAddress].s = {
+      fill: { fgColor: { rgb: "4F81BD" } },
+      font: { color: { rgb: "FFFFFF" }, bold: true },
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+  }
+  
+  // Add alternating row colors and border styles
+  for (let row = headerRange.s.r + 1; row <= headerRange.e.r; row++) {
+    const isEvenRow = row % 2 === 0;
+    const fillColor = isEvenRow ? "E9EFF7" : "FFFFFF";
     
-    // Set column widths
-    const columnWidths = this.selectedAttributes.map(() => ({ width: 15 }));
-    worksheet['!cols'] = columnWidths;
-    
-    // Apply styles to header row
-    const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
     for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
-      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
       if (!worksheet[cellAddress]) continue;
       
-      // Create formatted cell with styles
       worksheet[cellAddress].s = {
-        fill: { fgColor: { rgb: "4F81BD" } },
-        font: { color: { rgb: "FFFFFF" }, bold: true },
-        alignment: { horizontal: "center", vertical: "center" }
+        fill: { fgColor: { rgb: fillColor } },
+        border: {
+          top: { style: "thin", color: { rgb: "D3D3D3" } },
+          bottom: { style: "thin", color: { rgb: "D3D3D3" } },
+          left: { style: "thin", color: { rgb: "D3D3D3" } },
+          right: { style: "thin", color: { rgb: "D3D3D3" } }
+        },
+        alignment: { horizontal: "left", vertical: "center" }
       };
     }
-    
-    // Add alternating row colors and border styles
-    for (let row = headerRange.s.r + 1; row <= headerRange.e.r; row++) {
-      const isEvenRow = row % 2 === 0;
-      const fillColor = isEvenRow ? "E9EFF7" : "FFFFFF";
-      
-      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
-        const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
-        if (!worksheet[cellAddress]) continue;
-        
-        worksheet[cellAddress].s = {
-          fill: { fgColor: { rgb: fillColor } },
-          border: {
-            top: { style: "thin", color: { rgb: "D3D3D3" } },
-            bottom: { style: "thin", color: { rgb: "D3D3D3" } },
-            left: { style: "thin", color: { rgb: "D3D3D3" } },
-            right: { style: "thin", color: { rgb: "D3D3D3" } }
-          },
-          alignment: { horizontal: "left", vertical: "center" }
-        };
-      }
-    }
-    
-    // Create workbook and add worksheet
-    const workbook: XLSX.WorkBook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
-    
-    // Add title worksheet with report information
-    const titleWs = XLSX.utils.aoa_to_sheet([
-      ['Report Summary'],
-      [''],
-      ['Generated on:', new Date().toLocaleString()],
-      ['Tables included:', this.selectedTables.join(', ')],
-      ['Number of records:', this.reportData.length.toString()],
-      ['Filters applied:', this.activeFilters.length > 0 ? 'Yes' : 'No'],
-      ['Grouped by:', this.selectedGroupBy || 'None']
-    ]);
-    
-    // Style the title worksheet
-    titleWs['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
-    titleWs['A1'].s = { font: { bold: true, sz: 16, color: { rgb: "4F81BD" } } };
-    XLSX.utils.book_append_sheet(workbook, titleWs, 'Summary');
-    
-    // Generate filename with current date
-    const fileName = `report_${new Date().toISOString().split('T')[0]}.xlsx`;
-    
-    // Write workbook and trigger download
-    XLSX.writeFile(workbook, fileName);
   }
+  
+  // Create workbook and add worksheet
+  const workbook: XLSX.WorkBook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
+  
+  // Add title worksheet with report information
+  const titleWs = XLSX.utils.aoa_to_sheet([
+    ['Report Summary'],
+    [''],
+    ['Generated on:', new Date().toLocaleString()],
+    ['Tables included:', this.selectedTables.join(', ')],
+    ['Number of records:', this.reportData.length.toString()],
+    ['Filters applied:', this.activeFilters.length > 0 ? 'Yes' : 'No'],
+    ['Grouped by:', this.selectedGroupBy || 'None']
+  ]);
+  
+  // Style the title worksheet
+  titleWs['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+  titleWs['A1'].s = { font: { bold: true, sz: 16, color: { rgb: "4F81BD" } } };
+  XLSX.utils.book_append_sheet(workbook, titleWs, 'Summary');
+  
+  // Generate filename with current date
+  const fileName = `report_${new Date().toISOString().split('T')[0]}.xlsx`;
+  
+  // Write workbook and trigger download
+  XLSX.writeFile(workbook, fileName);
+}
 }

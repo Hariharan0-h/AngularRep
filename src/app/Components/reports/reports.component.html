@@ -176,11 +176,17 @@
     </div>
     
     <div class="results-panel">
+      <!-- Add this button next to the Export to Excel button in the results-header div -->
       <div class="results-header">
         <h2>Report Results</h2>
-        <button class="btn btn-success" [disabled]="reportData.length === 0" (click)="exportToExcel()">
-          <i class="fas fa-file-excel"></i> Export to Excel
-        </button>
+        <div class="export-buttons">
+          <button class="btn btn-success me-2" [disabled]="reportData.length === 0" (click)="exportToExcel()">
+            <i class="fas fa-file-excel"></i> Export to Excel
+          </button>
+          <!-- <button class="btn btn-danger" [disabled]="reportData.length === 0" (click)="exportToPDF()">
+            <i class="fas fa-file-pdf"></i> Export to PDF
+          </button> -->
+        </div>
       </div>
       
       <div class="loading-indicator" *ngIf="isLoading">

@@ -1,1 +1,243 @@
-<p>files works!</p>
+<div class="files-container">
+    <div class="header">
+      <h1>Report Files Manager</h1>
+      <p>Save, load, and manage your report configurations</p>
+    </div>
+  
+    <div class="main-content">
+      <div class="files-panel">
+        <div class="files-actions">
+          <input
+            type="text"
+            class="form-control search-input"
+            [(ngModel)]="searchQuery"
+            placeholder="Search files..."
+            (input)="filterFiles()"
+          />
+          
+          <div class="view-controls">
+            <button class="btn btn-outline-secondary" [class.active]="viewMode === 'list'" (click)="viewMode = 'list'">
+              <i class="fas fa-list"></i>
+            </button>
+            <button class="btn btn-outline-secondary" [class.active]="viewMode === 'grid'" (click)="viewMode = 'grid'">
+              <i class="fas fa-th"></i>
+            </button>
+          </div>
+        </div>
+  
+        <div class="files-sort-options">
+          <label>Sort by:</label>
+          <select class="form-control sort-select" [(ngModel)]="sortOption" (change)="sortFiles()">
+            <option value="nameAsc">Name (A-Z)</option>
+            <option value="nameDesc">Name (Z-A)</option>
+            <option value="dateDesc">Date (Newest)</option>
+            <option value="dateAsc">Date (Oldest)</option>
+          </select>
+        </div>
+  
+        <div class="files-list" *ngIf="viewMode === 'list'">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Date Modified</th>
+                <th>Size</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let file of filteredFiles" [class.selected]="selectedFile === file">
+                <td (click)="selectFile(file)">
+                  <div class="file-name">
+                    <i class="fas fa-file-alt file-icon"></i>
+                    <span>{{ file.name }}</span>
+                  </div>
+                </td>
+                <td>{{ file.lastModified | date:'medium' }}</td>
+                <td>{{ formatSize(file.size) }}</td>
+                <td>
+                  <button class="btn btn-sm btn-outline-primary" (click)="loadReport(file)">
+                    <i class="fas fa-folder-open"></i> Open
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger" (click)="confirmDelete(file)">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="filteredFiles.length === 0">
+                <td colspan="4" class="text-center">No report files found</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+  
+        <div class="files-grid" *ngIf="viewMode === 'grid'">
+          <div *ngFor="let file of filteredFiles" 
+               class="file-card" 
+               [class.selected]="selectedFile === file"
+               (click)="selectFile(file)">
+            <div class="file-icon-container">
+              <i class="fas fa-file-alt file-icon"></i>
+            </div>
+            <div class="file-details">
+              <div class="file-name">{{ file.name }}</div>
+              <div class="file-date">{{ file.lastModified | date:'shortDate' }}</div>
+            </div>
+            <div class="file-actions">
+              <button class="btn btn-sm btn-outline-primary" (click)="loadReport(file); $event.stopPropagation();">
+                <i class="fas fa-folder-open"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" (click)="confirmDelete(file); $event.stopPropagation();">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+          <div *ngIf="filteredFiles.length === 0" class="no-files">
+            No report files found
+          </div>
+        </div>
+      </div>
+  
+      <div class="file-details-panel" *ngIf="selectedFile">
+        <div class="file-details-header">
+          <h2>{{ selectedFile.name }}</h2>
+          <div class="file-tags">
+            <span *ngFor="let tag of selectedFile.tags" class="tag">{{ tag }}</span>
+            <button class="btn btn-sm btn-link" (click)="isAddingTag = true" *ngIf="!isAddingTag">
+              <i class="fas fa-plus"></i> Add Tag
+            </button>
+            <div class="tag-input-container" *ngIf="isAddingTag">
+              <input type="text" class="form-control tag-input" [(ngModel)]="newTag" placeholder="Enter tag...">
+              <button class="btn btn-sm btn-primary" (click)="addTag()">Add</button>
+              <button class="btn btn-sm btn-outline-secondary" (click)="isAddingTag = false">Cancel</button>
+            </div>
+          </div>
+        </div>
+  
+        <div class="file-details-content">
+          <div class="file-details-item">
+            <label>Created:</label>
+            <span>{{ selectedFile.created | date:'medium' }}</span>
+          </div>
+          <div class="file-details-item">
+            <label>Last Modified:</label>
+            <span>{{ selectedFile.lastModified | date:'medium' }}</span>
+          </div>
+          <div class="file-details-item">
+            <label>Size:</label>
+            <span>{{ formatSize(selectedFile.size) }}</span>
+          </div>
+          <div class="file-details-item">
+            <label>Description:</label>
+            <textarea
+              *ngIf="isEditingDescription"
+              class="form-control description-textarea"
+              [(ngModel)]="selectedFile.description"
+              rows="3"
+            ></textarea>
+            <div *ngIf="!isEditingDescription" class="description-text">
+              {{ selectedFile.description || 'No description' }}
+              <button class="btn btn-sm btn-link" (click)="isEditingDescription = true">
+                <i class="fas fa-edit"></i> Edit
+              </button>
+            </div>
+            <div *ngIf="isEditingDescription" class="mt-2">
+              <button class="btn btn-sm btn-primary" (click)="saveDescription()">Save</button>
+              <button class="btn btn-sm btn-outline-secondary" (click)="cancelEditDescription()">Cancel</button>
+            </div>
+          </div>
+        </div>
+  
+        <div class="file-preview">
+          <h3>Report Preview</h3>
+          <div class="report-summary">
+            <div class="summary-item">
+              <label>Tables:</label>
+              <span>{{ selectedFile.reportConfig.selectedTables.join(', ') }}</span>
+            </div>
+            <div class="summary-item">
+              <label>Attributes:</label>
+              <span>{{ selectedFile.reportConfig.selectedAttributes.length }} selected</span>
+            </div>
+            <div class="summary-item">
+              <label>Filters:</label>
+              <span>{{ selectedFile.reportConfig.activeFilters.length }} applied</span>
+            </div>
+            <div class="summary-item">
+              <label>Group By:</label>
+              <span>{{ selectedFile.reportConfig.selectedGroupBy || 'None' }}</span>
+            </div>
+          </div>
+          <div class="preview-actions">
+            <button class="btn btn-primary" (click)="loadReport(selectedFile)">
+              <i class="fas fa-folder-open"></i> Open Report
+            </button>
+            <button class="btn btn-outline-secondary" (click)="duplicateReport(selectedFile)">
+              <i class="fas fa-copy"></i> Duplicate
+            </button>
+            <button class="btn btn-outline-danger" (click)="confirmDelete(selectedFile)">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  
+    <!-- Save Report Modal -->
+    <div class="modal fade" id="saveReportModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Save Report</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="reportName" class="form-label">Report Name</label>
+              <input type="text" class="form-control" id="reportName" [(ngModel)]="newReportName">
+            </div>
+            <div class="mb-3">
+              <label for="reportDescription" class="form-label">Description (optional)</label>
+              <textarea class="form-control" id="reportDescription" rows="3" [(ngModel)]="newReportDescription"></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Tags (optional)</label>
+              <div class="d-flex gap-2 align-items-center">
+                <input type="text" class="form-control" [(ngModel)]="newReportTag">
+                <button class="btn btn-outline-secondary" (click)="addReportTag()">Add</button>
+              </div>
+              <div class="mt-2 d-flex flex-wrap gap-2">
+                <span *ngFor="let tag of newReportTags; let i = index" class="badge bg-primary d-flex align-items-center gap-1">
+                  {{ tag }}
+                  <button type="button" class="btn-close btn-close-white" (click)="removeReportTag(i)"></button>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" (click)="saveNewReport()">Save Report</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Deletion</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            Are you sure you want to delete the report "{{ fileToDelete?.name }}"? This action cannot be undone.
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-danger" (click)="deleteFile()">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
