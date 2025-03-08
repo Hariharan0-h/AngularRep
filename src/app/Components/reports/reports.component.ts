@@ -3,9 +3,12 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import * as XLSX from 'xlsx';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import jsPDF from 'jspdf';
+import * as bootstrap from 'bootstrap';
 import 'jspdf-autotable';
 import { forkJoin, map, Observable } from 'rxjs';
+import { ReportStorageService } from '../../Services/report-storage.service';
+import { ReportFile } from '../../Model/report-file';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-reports',
@@ -30,6 +33,11 @@ export class ReportsComponent implements OnInit {
   sqlQuery: string = '';
   sqlIsValid: boolean = false;
   sqlValidationMessage: string = '';
+  newReportName: string = '';
+  newReportDescription: string = '';
+  newReportTag: string = '';
+  newReportTags: string[] = [];
+  saveReportModal: any;
   
   // Flag to prevent recursive updates between UI and SQL
   private updatingFromSql: boolean = false;
@@ -38,12 +46,93 @@ export class ReportsComponent implements OnInit {
   // To track which table's filters and group by are being displayed
   currentDisplayTable: string = '';
 
-  constructor(private http: HttpClient) { }
+  constructor(
+    private reportStorageService: ReportStorageService,
+    private router: Router,
+    private http: HttpClient) { }
 
   ngOnInit(): void {
     this.loadTables();
     this.loadViews();
     this.initTabs();
+  }
+
+  ngAfterViewInit(): void {
+    // Initialize the save report modal
+    const modalElement = document.getElementById('saveReportModal');
+    if (modalElement) {
+      new bootstrap.Modal(modalElement);
+    }
+  }
+
+  addReportTag(): void {
+    if (this.newReportTag.trim() && !this.newReportTags.includes(this.newReportTag.trim())) {
+      this.newReportTags.push(this.newReportTag.trim());
+      this.newReportTag = '';
+    }
+  }
+  
+  removeReportTag(index: number): void {
+    this.newReportTags.splice(index, 1);
+  }
+  
+  saveCurrentReport(): void {
+    if (!this.newReportName.trim()) {
+      alert('Please enter a report name');
+      return;
+    }
+    
+    // Prepare report configuration
+    const reportConfig = {
+      selectedTables: this.selectedTables,
+      selectedAttributes: this.selectedAttributes,
+      availableAttributes: this.availableAttributes,
+      activeFilters: this.activeFilters,
+      selectedGroupBy: this.selectedGroupBy,
+      sqlQuery: this.sqlQuery,
+      reportData: this.reportData
+    };
+    
+    // Create a new report file
+    const reportFile: ReportFile = {
+      id: this.reportStorageService.generateUniqueId(),
+      name: this.newReportName.trim(),
+      description: this.newReportDescription,
+      tags: this.newReportTags,
+      created: new Date(),
+      lastModified: new Date(),
+      size: JSON.stringify(reportConfig).length, // Estimate size
+      reportConfig: reportConfig
+    };
+    
+    // Save the report using the service
+    this.reportStorageService.saveReport(reportFile).subscribe({
+      next: (saved) => {
+        console.log('Report saved successfully', saved);
+        this.saveReportModal.hide();
+        
+        // Optional: Navigate to files component to show saved reports
+        // this.router.navigate(['/files']);
+        
+        // Show success message
+        alert('Report saved successfully!');
+      },
+      error: (error) => {
+        console.error('Error saving report', error);
+        alert('Error saving report. Please try again.');
+      }
+    });
+  }
+
+  openSaveReportModal(): void {
+    // Reset form fields
+    this.newReportName = '';
+    this.newReportDescription = '';
+    this.newReportTag = '';
+    this.newReportTags = [];
+    
+    // Open the modal
+    this.saveReportModal.show();
   }
 
   // Method to initialize tabs (call this in ngOnInit)
@@ -76,6 +165,40 @@ export class ReportsComponent implements OnInit {
         }
       });
     });
+  }
+
+  loadSavedReportConfig(config: any): void {
+    if (!config) return;
+    
+    // Set selected tables and load schemas
+    this.selectedTables = config.selectedTables || [];
+    this.selectedTables.forEach(table => {
+      if (!this.tableSchemas[table]) {
+        this.loadTableSchema(table);
+      }
+    });
+    
+    // Set current display table
+    if (this.selectedTables.length > 0) {
+      this.setCurrentDisplayTable(this.selectedTables[0]);
+    }
+    
+    // Restore selected attributes
+    this.selectedAttributes = config.selectedAttributes || [];
+    
+    // Restore filters
+    this.activeFilters = config.activeFilters || [];
+    
+    // Restore group by
+    this.selectedGroupBy = config.selectedGroupBy || '';
+    
+    // Restore SQL query
+    this.sqlQuery = config.sqlQuery || '';
+    
+    // Restore report data if available
+    if (config.reportData && config.reportData.length > 0) {
+      this.reportData = config.reportData;
+    }
   }
 
   // Add a method to generate SQL from UI selections
@@ -806,7 +929,7 @@ export class ReportsComponent implements OnInit {
         const primaryTable = this.selectedTables[0];
         
         // Prepare query parameters
-        const queryParams = new HttpParams()
+        let queryParams = new HttpParams()
           .set('tables', primaryTable)
           .set('attributes', this.selectedAttributes
             .filter(attr => attr.table === primaryTable)
@@ -814,6 +937,11 @@ export class ReportsComponent implements OnInit {
             .join(','))
           .set('filters', this.serializeFilters())
           .set('groupBy', this.selectedGroupBy || '');
+
+        // Ensure filters are added
+        if (this.activeFilters.length > 0) {
+          queryParams = queryParams.set('filters', JSON.stringify(this.activeFilters));
+        }
   
         // Use GET with query params for single table
         this.http.get<any[]>(`${this.baseUrl}/data/${primaryTable}`, { params: queryParams }).subscribe(
@@ -821,8 +949,8 @@ export class ReportsComponent implements OnInit {
             console.log('Raw data received:', data);
             let filteredData = [...data];
   
-            // Apply filters if the backend doesn't support filtering
-            if (this.activeFilters.length > 0 && !queryParams.has('filters')) {
+            // Apply client-side filtering if needed
+            if (this.activeFilters.length > 0) {
               filteredData = this.applyClientSideFilters(filteredData);
             }
   

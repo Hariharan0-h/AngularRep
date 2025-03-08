@@ -72,7 +72,7 @@ export class FilesComponent implements OnInit, AfterViewInit {
       this.filteredFiles = this.files.filter(file => 
         file.name.toLowerCase().includes(query) || 
         (file.description && file.description.toLowerCase().includes(query)) ||
-        file.tags.some((tag: string) => tag.toLowerCase().includes(query))
+        (file.tags && file.tags.some((tag: string) => tag.toLowerCase().includes(query)))
       );
     }
     this.sortFiles();
@@ -87,10 +87,18 @@ export class FilesComponent implements OnInit, AfterViewInit {
         this.filteredFiles.sort((a, b) => b.name.localeCompare(a.name));
         break;
       case 'dateDesc':
-        this.filteredFiles.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+        this.filteredFiles.sort((a, b) => {
+          const dateA = a.lastModified instanceof Date ? a.lastModified.getTime() : new Date(a.lastModified).getTime();
+          const dateB = b.lastModified instanceof Date ? b.lastModified.getTime() : new Date(b.lastModified).getTime();
+          return dateB - dateA;
+        });
         break;
       case 'dateAsc':
-        this.filteredFiles.sort((a, b) => new Date(a.lastModified).getTime() - new Date(b.lastModified).getTime());
+        this.filteredFiles.sort((a, b) => {
+          const dateA = a.lastModified instanceof Date ? a.lastModified.getTime() : new Date(a.lastModified).getTime();
+          const dateB = b.lastModified instanceof Date ? b.lastModified.getTime() : new Date(b.lastModified).getTime();
+          return dateA - dateB;
+        });
         break;
     }
   }
@@ -154,8 +162,8 @@ export class FilesComponent implements OnInit, AfterViewInit {
       ...JSON.parse(JSON.stringify(file)),
       id: this.reportStorageService.generateUniqueId(),
       name: `${file.name} (Copy)`,
-      created: new Date().toISOString(),
-      lastModified: new Date().toISOString()
+      created: new Date(),
+      lastModified: new Date()
     };
     
     this.reportStorageService.saveReport(duplicate).subscribe(() => {
@@ -228,8 +236,8 @@ export class FilesComponent implements OnInit, AfterViewInit {
       description: this.newReportDescription.trim(),
       tags: [...this.newReportTags],
       size: JSON.stringify(currentConfig).length,
-      created: new Date().toISOString(),
-      lastModified: new Date().toISOString(),
+      created: new Date(),
+      lastModified: new Date(),
       reportConfig: currentConfig
     };
     
@@ -243,7 +251,7 @@ export class FilesComponent implements OnInit, AfterViewInit {
   }
 
   saveFile(file: ReportFile): void {
-    file.lastModified = new Date().toISOString();
+    file.lastModified = new Date();
     this.reportStorageService.saveReport(file).subscribe(() => {
       this.loadFiles();
     });

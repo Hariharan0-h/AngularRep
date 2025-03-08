@@ -2,10 +2,10 @@ export interface ReportFile {
     id: string;
     name: string;
     description?: string;
+    tags?: string[];
+    created: Date;
+    lastModified: Date;
     size: number;
-    created: string;
-    lastModified: string;
-    tags: string[];
     reportConfig: any; // Ideally this would be a proper type definition
     
     // Keeping original fields but making them optional

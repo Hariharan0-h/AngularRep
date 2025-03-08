@@ -1,217 +1,259 @@
 <div class="reports-container">
-    <div class="header">
-      <h1>Report Builder</h1>
-      <p>Create dynamic reports by selecting tables and attributes</p>
-    </div>
-  
-    <div class="main-content">
-      <div class="data-selection-panel">
-        <div class="tables-section">
-          <h2>Data Sources</h2>
-          
-          <div class="tabs-container">
-            <ul class="nav nav-tabs" role="tablist">
-              <li class="nav-item">
-                <a class="nav-link active" id="tables-tab-link" data-toggle="tab" href="#tables-tab" role="tab" aria-controls="tables-tab" aria-selected="true">Tables</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" id="views-tab-link" data-toggle="tab" href="#views-tab" role="tab" aria-controls="views-tab" aria-selected="false">Views</a>
-              </li>
-            </ul>
-            <div class="tab-content">
-              <div id="tables-tab" class="tab-pane fade show active" role="tabpanel" aria-labelledby="tables-tab-link">
-                <div class="table-list">
-                  <div *ngFor="let table of tables" 
-                       class="table-item"
-                       [class.selected]="selectedTables.includes(table)"
-                       (click)="onTableSelect(table)">
-                    <span>{{ table }}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div id="views-tab" class="tab-pane fade" role="tabpanel" aria-labelledby="views-tab-link">
-                <div class="table-list">
-                  <div *ngFor="let view of views" 
-                       class="table-item"
-                       [class.selected]="selectedTables.includes(view)"
-                       (click)="onTableSelect(view)">
-                    <span>{{ view }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="selected-tables-section">
-          <h2>Selected Tables</h2>
-          <div class="selected-tables-list">
-            <div *ngFor="let table of selectedTables" class="selected-table-item" 
-                 [class.active-table]="currentDisplayTable === table"
-                 (click)="setCurrentDisplayTable(table)">
-              <div class="table-header">
-                <span>{{ table }}</span>
-                <button class="btn-remove" (click)="removeTable(table)">×</button>
-              </div>
-              <div class="table-attributes">
-                <div *ngFor="let column of tableSchemas[table]" 
-                     class="attribute-item"
-                     (click)="selectAttribute({table: table, column: column.name, type: column.type, displayName: table + '.' + column.name})">
-                  <span>{{ column.name }}</span>
-                  <span class="attribute-type">{{ column.type }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+  <div class="header">
+    <h1>Report Builder</h1>
+    <p>Create dynamic reports by selecting tables and attributes</p>
+  </div>
 
-        <div class="sql-editor-section">
-          <h2>SQL Query Editor</h2>
-          <div class="sql-editor-container">
-            <textarea 
-              class="form-control sql-input" 
-              [(ngModel)]="sqlQuery" 
-              placeholder="Enter your SQL query here..."
-              rows="6"></textarea>
-            
-            <div class="sql-editor-toolbar">
-              <div class="sql-editor-status" *ngIf="sqlValidationMessage">
-                <span [class.status-error]="!sqlIsValid" [class.status-success]="sqlIsValid">
-                  {{ sqlValidationMessage }}
-                </span>
+  <div class="main-content">
+    <div class="data-selection-panel">
+      <div class="tables-section">
+        <h2>Data Sources</h2>
+        
+        <div class="tabs-container">
+          <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item">
+              <a class="nav-link active" id="tables-tab-link" data-toggle="tab" href="#tables-tab" role="tab" aria-controls="tables-tab" aria-selected="true">Tables</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" id="views-tab-link" data-toggle="tab" href="#views-tab" role="tab" aria-controls="views-tab" aria-selected="false">Views</a>
+            </li>
+          </ul>
+          <div class="tab-content">
+            <div id="tables-tab" class="tab-pane fade show active" role="tabpanel" aria-labelledby="tables-tab-link">
+              <div class="table-list">
+                <div *ngFor="let table of tables" 
+                     class="table-item"
+                     [class.selected]="selectedTables.includes(table)"
+                     (click)="onTableSelect(table)">
+                  <span>{{ table }}</span>
+                </div>
               </div>
-              <div class="sql-editor-actions">
-                <button class="btn btn-outline-primary btn-sm" (click)="validateSqlQuery()">
-                  <i class="fas fa-check"></i> Validate
-                </button>
-                <button class="btn btn-primary btn-sm" (click)="executeSqlQuery()" [disabled]="!sqlIsValid || !sqlQuery">
-                  <i class="fas fa-play"></i> Execute
-                </button>
+            </div>
+            
+            <div id="views-tab" class="tab-pane fade" role="tabpanel" aria-labelledby="views-tab-link">
+              <div class="table-list">
+                <div *ngFor="let view of views" 
+                     class="table-item"
+                     [class.selected]="selectedTables.includes(view)"
+                     (click)="onTableSelect(view)">
+                  <span>{{ view }}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
       
-      <div class="report-designer-panel">
-        <div class="attributes-container">
-          <div class="available-attributes-section">
-            <h2>Available Attributes</h2>
-            <div class="available-attributes-list">
-              <div *ngFor="let attr of availableAttributes" class="available-attribute-item" 
-                   (click)="selectAttribute(attr)">
-                <span>{{ attr.displayName }}</span>
-                <span class="attribute-type">{{ attr.type }}</span>
-              </div>
-              <div *ngIf="availableAttributes.length === 0" class="no-attributes">
-                No available attributes
-              </div>
+      <div class="selected-tables-section">
+        <h2>Selected Tables</h2>
+        <div class="selected-tables-list">
+          <div *ngFor="let table of selectedTables" class="selected-table-item" 
+               [class.active-table]="currentDisplayTable === table"
+               (click)="setCurrentDisplayTable(table)">
+            <div class="table-header">
+              <span>{{ table }}</span>
+              <button class="btn-remove" (click)="removeTable(table)">×</button>
             </div>
-          </div>
-          
-          <div class="attribute-controls">
-            <button class="btn btn-outline-primary btn-move-all" (click)="selectAllAttributes()">
-              &gt;&gt;
-            </button>
-            <button class="btn btn-outline-primary btn-move-all" (click)="removeAllAttributes()">
-              &lt;&lt;
-            </button>
-          </div>
-          
-          <div class="selected-attributes-section">
-            <h2>Selected Attributes</h2>
-            <div class="selected-attributes-list">
-              <div *ngFor="let attr of selectedAttributes; let i = index" class="selected-attribute-item">
-                <span>{{ attr.displayName }}</span>
-                <button class="btn-remove" (click)="removeAttribute(i)">×</button>
-              </div>
-              <div *ngIf="selectedAttributes.length === 0" class="no-attributes">
-                No attributes selected
+            <div class="table-attributes">
+              <div *ngFor="let column of tableSchemas[table]" 
+                   class="attribute-item"
+                   (click)="selectAttribute({table: table, column: column.name, type: column.type, displayName: table + '.' + column.name})">
+                <span>{{ column.name }}</span>
+                <span class="attribute-type">{{ column.type }}</span>
               </div>
             </div>
           </div>
         </div>
-        
-        <div class="filters-section">
-          <h2>Filters for {{ currentDisplayTable || 'No Table Selected' }}</h2>
-          <div class="filters-container">
-            <div *ngFor="let filter of activeFilters; let i = index" class="filter-item">
-              <select [(ngModel)]="filter.field" class="form-control filter-field">
-                <option *ngFor="let option of filterOptions" [value]="option.displayName">{{ option.displayName }}</option>
-              </select>
-              
-              <select [(ngModel)]="filter.operator" class="form-control filter-operator">
-                <option value="equals">equals</option>
-                <option value="contains">contains</option>
-                <option value="greaterThan">greater than</option>
-                <option value="lessThan">less than</option>
-              </select>
-              
-              <input type="text" class="form-control filter-value" [(ngModel)]="filter.value" placeholder="Value">
-              
-              <button class="btn-remove" (click)="removeFilter(i)">×</button>
+      </div>
+
+      <div class="sql-editor-section">
+        <h2>SQL Query Editor</h2>
+        <div class="sql-editor-container">
+          <textarea 
+            class="form-control sql-input" 
+            [(ngModel)]="sqlQuery" 
+            placeholder="Enter your SQL query here..."
+            rows="6"></textarea>
+          
+          <div class="sql-editor-toolbar">
+            <div class="sql-editor-status" *ngIf="sqlValidationMessage">
+              <span [class.status-error]="!sqlIsValid" [class.status-success]="sqlIsValid">
+                {{ sqlValidationMessage }}
+              </span>
             </div>
-            
-            <div class="filter-actions">
-              <button class="btn btn-outline-primary btn-sm" (click)="addFilter()" [disabled]="!currentDisplayTable">
-                <i class="fas fa-plus"></i> Add Filter
+            <div class="sql-editor-actions">
+              <button class="btn btn-outline-primary btn-sm" (click)="validateSqlQuery()">
+                <i class="fas fa-check"></i> Validate
               </button>
-              <button class="btn btn-primary btn-sm" (click)="applyFilters()" [disabled]="activeFilters.length === 0">
-                <i class="fas fa-filter"></i> Apply Filters
+              <button class="btn btn-primary btn-sm" (click)="executeSqlQuery()" [disabled]="!sqlIsValid || !sqlQuery">
+                <i class="fas fa-play"></i> Execute
               </button>
             </div>
           </div>
-        </div>
-        
-        <div class="group-by-section">
-          <h2>Group By</h2>
-          <select [(ngModel)]="selectedGroupBy" (change)="setGroupBy(selectedGroupBy)" class="form-control"
-                  [disabled]="!currentDisplayTable">
-            <option value="">-- None --</option>
-            <option *ngFor="let option of groupByOptions" [value]="option">{{ option }}</option>
-          </select>
         </div>
       </div>
     </div>
     
-    <div class="results-panel">
-      <!-- Add this button next to the Export to Excel button in the results-header div -->
-      <div class="results-header">
-        <h2>Report Results</h2>
-        <div class="export-buttons">
-          <button class="btn btn-success me-2" [disabled]="reportData.length === 0" (click)="exportToExcel()">
-            <i class="fas fa-file-excel"></i> Export to Excel
+    <div class="report-designer-panel">
+      <div class="attributes-container">
+        <div class="available-attributes-section">
+          <h2>Available Attributes</h2>
+          <div class="available-attributes-list">
+            <div *ngFor="let attr of availableAttributes" class="available-attribute-item" 
+                 (click)="selectAttribute(attr)">
+              <span>{{ attr.displayName }}</span>
+              <span class="attribute-type">{{ attr.type }}</span>
+            </div>
+            <div *ngIf="availableAttributes.length === 0" class="no-attributes">
+              No available attributes
+            </div>
+          </div>
+        </div>
+        
+        <div class="attribute-controls">
+          <button class="btn btn-outline-primary btn-move-all" (click)="selectAllAttributes()">
+            &gt;&gt;
           </button>
-          <!-- <button class="btn btn-danger" [disabled]="reportData.length === 0" (click)="exportToPDF()">
-            <i class="fas fa-file-pdf"></i> Export to PDF
-          </button> -->
+          <button class="btn btn-outline-primary btn-move-all" (click)="removeAllAttributes()">
+            &lt;&lt;
+          </button>
+        </div>
+        
+        <div class="selected-attributes-section">
+          <h2>Selected Attributes</h2>
+          <div class="selected-attributes-list">
+            <div *ngFor="let attr of selectedAttributes; let i = index" class="selected-attribute-item">
+              <span>{{ attr.displayName }}</span>
+              <button class="btn-remove" (click)="removeAttribute(i)">×</button>
+            </div>
+            <div *ngIf="selectedAttributes.length === 0" class="no-attributes">
+              No attributes selected
+            </div>
+          </div>
         </div>
       </div>
       
-      <div class="loading-indicator" *ngIf="isLoading">
-        <div class="spinner-border text-primary" role="status">
-          <span class="sr-only">Loading...</span>
+      <div class="filters-section">
+        <h2>Filters for {{ currentDisplayTable || 'No Table Selected' }}</h2>
+        <div class="filters-container">
+          <div *ngFor="let filter of activeFilters; let i = index" class="filter-item">
+            <select [(ngModel)]="filter.field" class="form-control filter-field">
+              <option *ngFor="let option of filterOptions" [value]="option.displayName">{{ option.displayName }}</option>
+            </select>
+            
+            <select [(ngModel)]="filter.operator" class="form-control filter-operator">
+              <option value="equals">equals</option>
+              <option value="contains">contains</option>
+              <option value="greaterThan">greater than</option>
+              <option value="lessThan">less than</option>
+            </select>
+            
+            <input type="text" class="form-control filter-value" [(ngModel)]="filter.value" placeholder="Value">
+            
+            <button class="btn-remove" (click)="removeFilter(i)">×</button>
+          </div>
+          
+          <div class="filter-actions">
+            <button class="btn btn-outline-primary btn-sm" (click)="addFilter()" [disabled]="!currentDisplayTable">
+              <i class="fas fa-plus"></i> Add Filter
+            </button>
+            <button class="btn btn-primary btn-sm" (click)="applyFilters()" [disabled]="activeFilters.length === 0">
+              <i class="fas fa-filter"></i> Apply Filters
+            </button>
+          </div>
         </div>
       </div>
       
-      <div class="results-table" *ngIf="!isLoading && reportData.length > 0">
-        <table class="table table-striped table-bordered">
-          <thead>
-            <tr>
-              <th *ngFor="let attr of selectedAttributes">{{ attr.displayName }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let row of reportData">
-              <td *ngFor="let attr of selectedAttributes">{{ row[attr.displayName] }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      
-      <div class="no-results" *ngIf="!isLoading && reportData.length === 0">
-        <p>No data to display. Please select attributes and generate the report.</p>
+      <div class="group-by-section">
+        <h2>Group By</h2>
+        <select [(ngModel)]="selectedGroupBy" (change)="setGroupBy(selectedGroupBy)" class="form-control"
+                [disabled]="!currentDisplayTable">
+          <option value="">-- None --</option>
+          <option *ngFor="let option of groupByOptions" [value]="option">{{ option }}</option>
+        </select>
       </div>
     </div>
   </div>
+  
+  <div class="results-panel">
+    <div class="results-header">
+      <h2>Report Results</h2>
+      <div class="export-buttons">
+        <!-- Add this Save Report button -->
+        <button class="btn btn-primary me-2" (click)="openSaveReportModal()">
+          <i class="fas fa-save"></i> Save Report
+        </button>
+        <button class="btn btn-success me-2" [disabled]="reportData.length === 0" (click)="exportToExcel()">
+          <i class="fas fa-file-excel"></i> Export to Excel
+        </button>
+        <!-- <button class="btn btn-danger" [disabled]="reportData.length === 0" (click)="exportToPDF()">
+          <i class="fas fa-file-pdf"></i> Export to PDF
+        </button> -->
+      </div>
+    </div>
+    
+    <div class="loading-indicator" *ngIf="isLoading">
+      <div class="spinner-border text-primary" role="status">
+        <span class="sr-only">Loading...</span>
+      </div>
+    </div>
+    
+    <div class="results-table" *ngIf="!isLoading && reportData.length > 0">
+      <table class="table table-striped table-bordered">
+        <thead>
+          <tr>
+            <th *ngFor="let attr of selectedAttributes">{{ attr.displayName }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of reportData">
+            <td *ngFor="let attr of selectedAttributes">{{ row[attr.displayName] }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="no-results" *ngIf="!isLoading && reportData.length === 0">
+      <p>No data to display. Please select attributes and generate the report.</p>
+    </div>
+  </div>
+
+  <!-- Save Report Modal -->
+  <div class="modal fade" id="saveReportModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Save Report</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="reportName" class="form-label">Report Name</label>
+            <input type="text" class="form-control" id="reportName" [(ngModel)]="newReportName">
+          </div>
+          <div class="mb-3">
+            <label for="reportDescription" class="form-label">Description (optional)</label>
+            <textarea class="form-control" id="reportDescription" rows="3" [(ngModel)]="newReportDescription"></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Tags (optional)</label>
+            <div class="d-flex gap-2 align-items-center">
+              <input type="text" class="form-control" [(ngModel)]="newReportTag">
+              <button class="btn btn-outline-secondary" (click)="addReportTag()">Add</button>
+            </div>
+            <div class="mt-2 d-flex flex-wrap gap-2">
+              <span *ngFor="let tag of newReportTags; let i = index" class="badge bg-primary d-flex align-items-center gap-1">
+                {{ tag }}
+                <button type="button" class="btn-close btn-close-white" (click)="removeReportTag(i)"></button>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" (click)="saveCurrentReport()">Save Report</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
