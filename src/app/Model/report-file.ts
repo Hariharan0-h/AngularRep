@@ -1,19 +1,23 @@
 export interface ReportFile {
     id: string;
     name: string;
-    originalName: string;
+    description?: string;
     size: number;
-    type: string;
-    mimeType: string;
-    extension: string;
-    path: string;
+    created: string;
+    lastModified: string;
+    tags: string[];
+    reportConfig: any; // Ideally this would be a proper type definition
+    
+    // Keeping original fields but making them optional
+    originalName?: string;
+    type?: string;
+    mimeType?: string;
+    extension?: string;
+    path?: string;
     url?: string;
     thumbnailUrl?: string;
-    uploadedAt: Date;
+    uploadedAt?: Date;
     uploadedBy?: string;
-    lastModified?: Date;
-    description?: string;
-    tags?: string[];
     category?: string;
     status?: FileStatus;
     metadata?: Record<string, any>;
@@ -25,20 +29,20 @@ export interface ReportFile {
       previousVersionId?: string;
       changes?: string;
     };
-  }
-  
-  export enum FileStatus {
+}
+
+export enum FileStatus {
     UPLOADING = 'uploading',
     PROCESSING = 'processing',
     READY = 'ready',
     ERROR = 'error',
     DELETED = 'deleted'
-  }
-  
-  export interface FileUploadProgress {
+}
+
+export interface FileUploadProgress {
     file: File;
     progress: number;
     error?: string;
     uploaded?: boolean;
     result?: ReportFile;
-  }
+}

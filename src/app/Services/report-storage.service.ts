@@ -2,35 +2,106 @@ import { HttpClient, HttpEvent, HttpRequest } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { ReportFile } from '../Model/report-file';
 import { Observable } from 'rxjs/internal/Observable';
-import { catchError, of, throwError } from 'rxjs';
+import { catchError, map, of, throwError } from 'rxjs';
+import { v4 as uuidv4 } from 'uuid'; // You may need to install this package
 
 @Injectable({
   providedIn: 'root'
 })
-export class ReportStorageService{
-  private apiUrl = 'api/files'; // Replace with your actual API endpoint
+export class ReportStorageService {
+  private apiUrl = 'api/reports'; // Changed from 'api/files' to match functionality
+  private currentReportConfig: any = null;
+  private localStorageKey = 'savedReports';
 
   constructor(private http: HttpClient) { }
 
   /**
-   * Get all files
+   * Get all report files
    */
-  getFiles(): Observable<ReportFile[]> {
-    return this.http.get<ReportFile[]>(this.apiUrl)
-      .pipe(
-        catchError(this.handleError<ReportFile[]>('getFiles', []))
-      );
+  getAllReports(): Observable<ReportFile[]> {
+    // For now, we'll simulate with localStorage, but this could use HTTP in production
+    return of(this.getReportsFromStorage());
   }
 
   /**
-   * Get a file by id
+   * Get a report by id
    */
+  getReport(id: string): Observable<ReportFile> {
+    const reports = this.getReportsFromStorage();
+    const report = reports.find(r => r.id === id);
+    
+    if (report) {
+      return of(report);
+    } else {
+      return throwError(() => new Error(`Report with id=${id} not found`));
+    }
+  }
+
+  /**
+   * Save a report
+   */
+  saveReport(report: ReportFile): Observable<ReportFile> {
+    const reports = this.getReportsFromStorage();
+    const index = reports.findIndex(r => r.id === report.id);
+    
+    if (index >= 0) {
+      reports[index] = report;
+    } else {
+      reports.push(report);
+    }
+    
+    localStorage.setItem(this.localStorageKey, JSON.stringify(reports));
+    return of(report);
+  }
+
+  /**
+   * Delete a report
+   */
+  deleteReport(id: string): Observable<boolean> {
+    const reports = this.getReportsFromStorage();
+    const filteredReports = reports.filter(r => r.id !== id);
+    
+    localStorage.setItem(this.localStorageKey, JSON.stringify(filteredReports));
+    return of(true);
+  }
+
+  /**
+   * Get the current report configuration
+   */
+  getCurrentReportConfig(): any {
+    return this.currentReportConfig;
+  }
+
+  /**
+   * Set the current report configuration
+   */
+  setCurrentReportConfig(config: any): void {
+    this.currentReportConfig = config;
+  }
+
+  /**
+   * Generate a unique ID for new reports
+   */
+  generateUniqueId(): string {
+    return uuidv4(); // Using UUID v4 for unique IDs
+  }
+
+  /**
+   * Helper method to get reports from localStorage
+   */
+  private getReportsFromStorage(): ReportFile[] {
+    const storedReports = localStorage.getItem(this.localStorageKey);
+    return storedReports ? JSON.parse(storedReports) : [];
+  }
+
+  // Keeping original methods for reference and backward compatibility
+  
+  getFiles(): Observable<ReportFile[]> {
+    return this.getAllReports();
+  }
+
   getFile(id: string): Observable<ReportFile> {
-    const url = `${this.apiUrl}/${id}`;
-    return this.http.get<ReportFile>(url)
-      .pipe(
-        catchError(this.handleError<ReportFile>(`getFile id=${id}`))
-      );
+    return this.getReport(id);
   }
 
   /**
@@ -56,22 +127,20 @@ export class ReportStorageService{
    * Delete a file
    */
   deleteFile(id: string): Observable<any> {
-    const url = `${this.apiUrl}/${id}`;
-    return this.http.delete(url)
-      .pipe(
-        catchError(this.handleError('deleteFile'))
-      );
+    return this.deleteReport(id);
   }
 
   /**
    * Update file metadata
    */
   updateFileMetadata(id: string, metadata: Partial<ReportFile>): Observable<ReportFile> {
-    const url = `${this.apiUrl}/${id}/metadata`;
-    return this.http.patch<ReportFile>(url, metadata)
-      .pipe(
-        catchError(this.handleError<ReportFile>('updateFileMetadata'))
-      );
+    return this.getReport(id).pipe(
+      map(report => {
+        const updatedReport = { ...report, ...metadata };
+        this.saveReport(updatedReport);
+        return updatedReport;
+      })
+    );
   }
 
   /**

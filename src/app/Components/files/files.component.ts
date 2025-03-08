@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -14,7 +14,7 @@ declare var bootstrap: any;
   templateUrl: './files.component.html',
   styleUrls: ['./files.component.css']
 })
-export class FilesComponent implements OnInit {
+export class FilesComponent implements OnInit, AfterViewInit {
   files: ReportFile[] = [];
   filteredFiles: ReportFile[] = [];
   selectedFile: ReportFile | null = null;
@@ -46,17 +46,20 @@ export class FilesComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadFiles();
-    
-    // Initialize modals
-    document.addEventListener('DOMContentLoaded', () => {
+  }
+
+  ngAfterViewInit(): void {
+    // Initialize modals after view is initialized
+    setTimeout(() => {
       this.saveReportModal = new bootstrap.Modal(document.getElementById('saveReportModal'));
       this.deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
-    });
+    }, 100);
   }
 
   loadFiles(): void {
     this.reportStorageService.getAllReports().subscribe((files: ReportFile[]) => {
       this.files = files;
+      this.filteredFiles = [...files];
       this.sortFiles();
     });
   }
@@ -108,6 +111,9 @@ export class FilesComponent implements OnInit {
 
   addTag(): void {
     if (this.newTag.trim() && this.selectedFile) {
+      if (!this.selectedFile.tags) {
+        this.selectedFile.tags = [];
+      }
       if (!this.selectedFile.tags.includes(this.newTag.trim())) {
         this.selectedFile.tags.push(this.newTag.trim());
         this.saveFile(this.selectedFile);
@@ -160,7 +166,11 @@ export class FilesComponent implements OnInit {
 
   confirmDelete(file: ReportFile): void {
     this.fileToDelete = file;
-    this.deleteConfirmModal.show();
+    if (this.deleteConfirmModal) {
+      this.deleteConfirmModal.show();
+    } else {
+      console.error('Delete confirmation modal not initialized');
+    }
   }
 
   deleteFile(): void {
@@ -170,7 +180,9 @@ export class FilesComponent implements OnInit {
           this.selectedFile = null;
         }
         this.loadFiles();
-        this.deleteConfirmModal.hide();
+        if (this.deleteConfirmModal) {
+          this.deleteConfirmModal.hide();
+        }
       });
     }
   }
@@ -180,7 +192,11 @@ export class FilesComponent implements OnInit {
     this.newReportDescription = '';
     this.newReportTags = [];
     this.newReportTag = '';
-    this.saveReportModal.show();
+    if (this.saveReportModal) {
+      this.saveReportModal.show();
+    } else {
+      console.error('Save report modal not initialized');
+    }
   }
 
   addReportTag(): void {
@@ -219,7 +235,9 @@ export class FilesComponent implements OnInit {
     
     this.reportStorageService.saveReport(newReport).subscribe(() => {
       this.loadFiles();
-      this.saveReportModal.hide();
+      if (this.saveReportModal) {
+        this.saveReportModal.hide();
+      }
       this.selectFile(newReport);
     });
   }
