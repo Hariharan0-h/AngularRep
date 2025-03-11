@@ -76,47 +76,18 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   
   fetchData(): void {
     // this.http.get<HospitalData[]>('https://localhost:7129/api/Database/data/Hospital Data Lake')
-    this.http.get<any[]>('https://localhost:7129/api/Database/data/Hospital Data Lake')
-  .subscribe({
-    next: (data) => {
-      // Transform column names to match the expected interface
-      this.dashboardData = data.map(item => ({
-        patientid: item['Patient ID'],
-        patientfirstname: item['Patient First Name'],
-        patientlastname: item['Patient Last Name'],
-        dateofbirth: item['Date Of Birth'],
-        gender: item['Gender'],
-        patientcontact: item['Patient Contact'],
-        patientemail: item['Patient Email'],
-        patientaddress: item['Patient Address'],
-        doctorid: item['Doctor ID'],
-        doctorfirstname: item['Doctor First Name'],
-        doctorlastname: item['Doctor Last Name'],
-        specialization: item['Specialization'],
-        doctorcontact: item['Doctor Contact Number'],
-        doctoremail: item['Doctor Email'],
-        appointmentid: item['Appointment ID'],
-        appointmentdate: item['Appointment Date'],
-        appointmentstatus: item['Appointment Status'],
-        appointmentnotes: item['Appointment Notes'],
-        treatmentid: item['Treatment ID'],
-        treatmentname: item['Treatment Name'],
-        treatmentcost: item['Treatment Cost'],
-        treatmentdate: item['Treatment Date'],
-        billid: item['Bill ID'],
-        totalamount: item['Total Amount'],
-        paymentstatus: item['Payment Status'],
-        paymentmethod: item['Payment Method'],
-        billdate: item['Bill Date']
-      }));
-      this.filteredData = [...this.dashboardData];
-      this.processData();
-      this.initCharts();
-    },
-    error: (error) => {
-      console.error('Error fetching data:', error);
-    }
-  });
+    this.http.get<HospitalData[]>('https://localhost:7129/api/Database/data/hospitaloverview')
+      .subscribe({
+        next: (data) => {
+          this.dashboardData = data;
+          this.filteredData = [...data];
+          this.processData();
+          this.initCharts();
+        },
+        error: (error) => {
+          console.error('Error fetching data:', error);
+        }
+      });
   }
   
   processData(): void {
