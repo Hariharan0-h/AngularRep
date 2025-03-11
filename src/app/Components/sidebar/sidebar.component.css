@@ -166,8 +166,8 @@ li.active .icon {
 }
 
 .icon {
-  width: 20px;
-  height: 20px;
+  width: 30px;
+  height: 30px;
   margin-right: 15px;
   opacity: 0.8;
   transition: all 0.3s;
@@ -179,6 +179,7 @@ li:hover .icon {
 
 span {
   font-weight: 500;
+  font-family: 'poppins';
   letter-spacing: 0.3px;
   color: #464646;
   transition: all 0.3s;
@@ -191,10 +192,11 @@ li.active span {
 /* Footer area of sidebar */
 .sidebar-footer {
   padding: 15px 0;
+  font-family: 'poppins';
   margin-top: auto;
   border-top: 1px solid rgba(0, 0, 0, 0.04);
   color: #666;
-  font-size: 12px;
+  font-size: 16px;
   text-align: center;
 }
 

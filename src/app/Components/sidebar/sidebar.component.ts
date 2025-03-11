@@ -24,8 +24,8 @@ export class SidebarComponent implements OnInit {
   
   menuItems = [
     //{ label: 'Home', route: '/home' },
-    { label: 'Reports', route: '/reports' },
     { label: 'Dashboard', route: '/dashboard' },
+    { label: 'Reports', route: '/reports' },
     { label: 'Files', route: '/files' }
   ];
   
