@@ -193,9 +193,9 @@ li.active span {
 .sidebar-footer {
   padding: 15px 0;
   font-family: 'poppins';
+  color: #4c6fff;
   margin-top: auto;
   border-top: 1px solid rgba(0, 0, 0, 0.04);
-  color: #666;
   font-size: 16px;
   text-align: center;
 }
