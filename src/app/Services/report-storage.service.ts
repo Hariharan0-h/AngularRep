@@ -1,170 +1,161 @@
-import { HttpClient, HttpEvent, HttpRequest } from '@angular/common/http';
-import { Injectable } from '@angular/core';
-import { ReportFile } from '../Model/report-file';
-import { Observable } from 'rxjs/internal/Observable';
-import { catchError, map, of, throwError } from 'rxjs';
-import { v4 as uuidv4 } from 'uuid'; // You may need to install this package
+import { HttpClient, HttpEvent, HttpRequest } from "@angular/common/http";
+import { Injectable } from "@angular/core";
+import { ReportFile } from "../Model/report-file";
+import { Observable } from "rxjs/internal/Observable";
+import { catchError, map, of, throwError } from "rxjs";
+import { v4 as uuidv4 } from "uuid"; // You may need to install this package
 
 @Injectable({
-  providedIn: 'root'
+	providedIn: "root",
 })
 export class ReportStorageService {
-  private apiUrl = 'api/reports'; // Changed from 'api/files' to match functionality
-  private currentReportConfig: any = null;
-  private localStorageKey = 'savedReports';
+	private apiUrl = "https://localhost:7129/api/Database";
+	private currentReportConfig: any = null;
+	private localStorageKey = "savedReports";
 
-  constructor(private http: HttpClient) { }
+	constructor(private http: HttpClient) {}
 
-  /**
-   * Get all report files
-   */
-  getAllReports(): Observable<ReportFile[]> {
-    // For now, we'll simulate with localStorage, but this could use HTTP in production
-    return of(this.getReportsFromStorage());
-  }
+	/**
+	 * Get all report files
+	 */
+	getAllReports(): Observable<ReportFile[]> {
+		return this.http.get<ReportFile[]>(`${this.apiUrl}/get-reports`);
+	}
 
-  /**
-   * Get a report by id
-   */
-  getReport(id: string): Observable<ReportFile> {
-    const reports = this.getReportsFromStorage();
-    const report = reports.find(r => r.id === id);
-    
-    if (report) {
-      return of(report);
-    } else {
-      return throwError(() => new Error(`Report with id=${id} not found`));
-    }
-  }
+	/**
+	 * Get a report by id
+	 */
+	getReport(id: number): Observable<ReportFile> {
+		return this.http.get<ReportFile>(`${this.apiUrl}/get-report/${id}`);
+	}
 
-  /**
-   * Save a report
-   */
-  saveReport(report: ReportFile): Observable<ReportFile> {
-    const reports = this.getReportsFromStorage();
-    const index = reports.findIndex(r => r.id === report.id);
-    
-    if (index >= 0) {
-      reports[index] = report;
-    } else {
-      reports.push(report);
-    }
-    
-    localStorage.setItem(this.localStorageKey, JSON.stringify(reports));
-    return of(report);
-  }
+	/**
+	 * Save a report
+	 */
+	saveReport(report: ReportFile): Observable<any> {
+		return this.http.post(`${this.apiUrl}/save-report`, report);
+	}
 
-  /**
-   * Delete a report
-   */
-  deleteReport(id: string): Observable<boolean> {
-    const reports = this.getReportsFromStorage();
-    const filteredReports = reports.filter(r => r.id !== id);
-    
-    localStorage.setItem(this.localStorageKey, JSON.stringify(filteredReports));
-    return of(true);
-  }
+	/**
+	 * Update an existing report
+	 */
+	updateReport(id: number, report: ReportFile): Observable<any> {
+		return this.http.put(`${this.apiUrl}/update-report/${id}`, report);
+	}
 
-  /**
-   * Get the current report configuration
-   */
-  getCurrentReportConfig(): any {
-    return this.currentReportConfig;
-  }
+	/**
+	 * Delete a report
+	 */
+	deleteReport(id: number): Observable<any> {
+		return this.http.delete(`${this.apiUrl}/delete-report/${id}`);
+	}
 
-  /**
-   * Set the current report configuration
-   */
-  setCurrentReportConfig(config: any): void {
-    this.currentReportConfig = config;
-  }
+	/**
+	 * Get the current report configuration
+	 */
+	getCurrentReportConfig(): any {
+		return this.currentReportConfig;
+	}
 
-  /**
-   * Generate a unique ID for new reports
-   */
-  generateUniqueId(): string {
-    return uuidv4(); // Using UUID v4 for unique IDs
-  }
+	/**
+	 * Set the current report configuration
+	 */
+	setCurrentReportConfig(config: any): void {
+		this.currentReportConfig = config;
+	}
 
-  /**
-   * Helper method to get reports from localStorage
-   */
-  private getReportsFromStorage(): ReportFile[] {
-    const storedReports = localStorage.getItem(this.localStorageKey);
-    return storedReports ? JSON.parse(storedReports) : [];
-  }
+	/**
+	 * Generate a unique ID for new reports
+	 */
+	generateUniqueId(): string {
+		return uuidv4(); // Using UUID v4 for unique IDs
+	}
 
-  // Keeping original methods for reference and backward compatibility
-  
-  getFiles(): Observable<ReportFile[]> {
-    return this.getAllReports();
-  }
+	/**
+	 * Helper method to get reports from localStorage
+	 */
+	private getReportsFromStorage(): ReportFile[] {
+		const storedReports = localStorage.getItem(this.localStorageKey);
+		return storedReports ? JSON.parse(storedReports) : [];
+	}
 
-  getFile(id: string): Observable<ReportFile> {
-    return this.getReport(id);
-  }
+	// Keeping original methods for reference and backward compatibility
 
-  /**
-   * Upload a file
-   */
-  uploadFile(file: File, metadata?: Partial<ReportFile>): Observable<HttpEvent<any>> {
-    const formData: FormData = new FormData();
-    formData.append('file', file);
-    
-    // Add metadata if available
-    if (metadata) {
-      formData.append('metadata', JSON.stringify(metadata));
-    }
+	getFiles(): Observable<ReportFile[]> {
+		return this.getAllReports();
+	}
 
-    const req = new HttpRequest('POST', this.apiUrl, formData, {
-      reportProgress: true
-    });
+	getFile(id: number): Observable<ReportFile> {
+		return this.getReport(id);
+	}
 
-    return this.http.request(req);
-  }
+	/**
+	 * Upload a file
+	 */
+	uploadFile(
+		file: File,
+		metadata?: Partial<ReportFile>
+	): Observable<HttpEvent<any>> {
+		const formData: FormData = new FormData();
+		formData.append("file", file);
 
-  /**
-   * Delete a file
-   */
-  deleteFile(id: string): Observable<any> {
-    return this.deleteReport(id);
-  }
+		// Add metadata if available
+		if (metadata) {
+			formData.append("metadata", JSON.stringify(metadata));
+		}
 
-  /**
-   * Update file metadata
-   */
-  updateFileMetadata(id: string, metadata: Partial<ReportFile>): Observable<ReportFile> {
-    return this.getReport(id).pipe(
-      map(report => {
-        const updatedReport = { ...report, ...metadata };
-        this.saveReport(updatedReport);
-        return updatedReport;
-      })
-    );
-  }
+		const req = new HttpRequest("POST", this.apiUrl, formData, {
+			reportProgress: true,
+		});
 
-  /**
-   * Download a file
-   */
-  downloadFile(id: string): Observable<Blob> {
-    const url = `${this.apiUrl}/${id}/download`;
-    return this.http.get(url, {
-      responseType: 'blob'
-    }).pipe(
-      catchError(this.handleError<Blob>('downloadFile'))
-    );
-  }
+		return this.http.request(req);
+	}
 
-  /**
-   * Handle Http operation that failed.
-   * Let the app continue.
-   */
-  private handleError<T>(operation = 'operation', result?: T) {
-    return (error: any): Observable<T> => {
-      console.error(`${operation} failed: ${error.message}`);
-      
-      // Let the app keep running by returning an empty result
-      return error.status === 404 ? of(result as T) : throwError(() => error);
-    };
-  }
+	/**
+	 * Delete a file
+	 */
+	deleteFile(id: number): Observable<any> {
+		return this.deleteReport(id);
+	}
+
+	/**
+	 * Update file metadata
+	 */
+	updateFileMetadata(
+		id: number,
+		metadata: Partial<ReportFile>
+	): Observable<ReportFile> {
+		return this.getReport(id).pipe(
+			map((report) => {
+				const updatedReport = { ...report, ...metadata };
+				this.saveReport(updatedReport);
+				return updatedReport;
+			})
+		);
+	}
+
+	/**
+	 * Download a file
+	 */
+	downloadFile(id: string): Observable<Blob> {
+		const url = `${this.apiUrl}/${id}/download`;
+		return this.http
+			.get(url, {
+				responseType: "blob",
+			})
+			.pipe(catchError(this.handleError<Blob>("downloadFile")));
+	}
+
+	/**
+	 * Handle Http operation that failed.
+	 * Let the app continue.
+	 */
+	private handleError<T>(operation = "operation", result?: T) {
+		return (error: any): Observable<T> => {
+			console.error(`${operation} failed: ${error.message}`);
+
+			// Let the app keep running by returning an empty result
+			return error.status === 404 ? of(result as T) : throwError(() => error);
+		};
+	}
 }
